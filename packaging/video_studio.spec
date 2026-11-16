@@ -16,6 +16,7 @@ a = Analysis(
         (str(PKG / "assets" / "english_words.txt"), "assets"),
         (str(PKG / "assets" / "provider-icons" / "LICENSE"), "licenses/provider-icons"),
         (str(PKG / "assets" / "app-icon.ico"), "assets"),
+        (str(PKG / "assets" / "takebloom-logo.png"), "assets"),
     ],
     hiddenimports=["video_studio.editor", "video_studio.studio", "video_studio.engines.hyperframes", "video_studio.brain",
                    "video_studio.learn", "video_studio.setup", "video_studio.engines.sense", "video_studio.engines.style",

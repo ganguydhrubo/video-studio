@@ -42,7 +42,7 @@ jobs:
         run: python packaging/smoke.py dist/VideoStudio/video-studio.exe
       - uses: actions/upload-artifact@v7.0.2
         with:
-          name: Windows-installer
+          name: Takebloom-Windows
           path: |
             dist/VideoStudio-Setup-*.exe
             dist/VideoStudio-*-portable.zip
@@ -56,8 +56,8 @@ jobs:
           $version = $env:GITHUB_REF_NAME.Substring(1)
           $notesPath = "docs/releases/$version.md"
           if (Test-Path $notesPath) {
-            gh release create $env:GITHUB_REF_NAME @assets --verify-tag --title "Video Studio $version" --notes-file $notesPath
+            gh release create $env:GITHUB_REF_NAME @assets --verify-tag --title "Takebloom $version" --notes-file $notesPath
           } else {
-            gh release create $env:GITHUB_REF_NAME @assets --verify-tag --title "Video Studio $version" --generate-notes
+            gh release create $env:GITHUB_REF_NAME @assets --verify-tag --title "Takebloom $version" --generate-notes
           }
           if ($LASTEXITCODE -ne 0) { throw 'Release publishing failed' }

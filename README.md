@@ -1,14 +1,14 @@
-# Video Studio
+# Takebloom
 
-[Download for Windows](https://github.com/ganguydhrubo/video-studio/releases/latest/download/VideoStudio-Setup.exe) · [Releases and checksums](https://github.com/ganguydhrubo/video-studio/releases/latest)
+[Download for Windows](https://github.com/ganguydhrubo/video-studio/releases/latest/download/Takebloom-Setup.exe) · [Releases and checksums](https://github.com/ganguydhrubo/video-studio/releases/latest)
 
-## Desktop workspace in 1.4
+## Takebloom desktop workspace
 
-Open Video Studio in a separate app window. Choose files directly from your PC, follow a simple illustrated editing journey, and review the finished video. AI providers have recognisable icons and individual cards. Progress reflects real completed stages; technical logs are tucked away.
+Open Takebloom in a separate app window. Choose files directly from your PC, follow a simple illustrated editing journey, and review the finished video. AI providers have recognisable icons and individual cards. Progress reflects real completed stages; technical logs are tucked away.
 
 The interface and processing server run on your PC. `127.0.0.1` is your own computer, not a public host. Footage is not automatically published. Optional online AI review sends transcript text to the selected provider; select AI Off for local planning. Edge provides the app window; the default browser is the fallback.
 
-Local-first AI video production for Windows. Free, offline-capable, no paid APIs.
+Local-first video production for Windows. Free editing tools, with optional AI providers using your own accounts.
 
 - **Works with no AI service at all.** A local editor brain (voice stress, key words, hook strength) and a
   video-sense pass (shots, sharpness, light, motion, people, music beats) decide the edit. No AI service is needed;
@@ -56,7 +56,7 @@ Local-first AI video production for Windows. Free, offline-capable, no paid APIs
 
 ## Install
 
-1. Run `VideoStudio-Setup-1.4.0.exe`. It installs per user, adds itself to PATH and creates Desktop and Start-menu shortcuts called "Video Studio". Open either shortcut, or double-click `VideoStudio.exe` in the portable folder. A separate Edge app window opens after the local server is ready; the default browser is used if Edge is unavailable. No terminal needs to stay open. Uninstall from Settings › Apps; your projects and memory are kept.
+1. Run `Takebloom-Setup-1.5.0.exe`. It installs per user, adds itself to PATH and creates Desktop and Start-menu shortcuts called "Takebloom". Open either shortcut, or double-click `VideoStudio.exe` in the portable folder. A separate Edge app window opens after the local server is ready; the default browser is used if Edge is unavailable. No terminal needs to stay open. Uninstall from Settings › Apps; your projects and memory are kept.
 2. Run `video-studio setup` (or open the Studio's System page). It scans this PC, explains in plain English what it can
    and cannot edit, and installs everything it needs after one confirmation (~1.5 GB, all free and open source).
    `video-studio setup --report` only scans. `video-studio doctor` lists every tool with the exact fix:
@@ -66,11 +66,11 @@ Local-first AI video production for Windows. Free, offline-capable, no paid APIs
      is **OpenCode's free models** (`install opencode`, no account). Ollama runs free and offline. Gemini and Qwen are
      free with an account. Claude and Codex need a paid plan. The Studio's System page has an "AI brain" card with an
      Install button, a Sign-in button and a free-model picker for each one. Sign-in always opens the provider's own login;
-     Video Studio never sees your password or tokens.
+     Takebloom never sees your password or tokens.
 
    Every install shows the plan and the licence first, then asks before it runs.
 
-A portable zip (`VideoStudio-1.4.0-portable.zip`) is also built. Extract the entire archive before opening `VideoStudio.exe`; keep `_internal` beside both executables. `video-studio.exe` remains the command-line entry and opens Studio when run without arguments. To run from source, use `pip install -e .` and then `video-studio ...`.
+A portable zip (`Takebloom-1.5.0-portable.zip`) is also built. Extract the entire archive before opening `VideoStudio.exe`; keep `_internal` beside both executables. `video-studio.exe` remains the command-line entry and opens Studio when run without arguments. To run from source, use `pip install -e .` and then `video-studio ...`.
 
 If startup fails, the desktop launcher shows the error. Logs are in `%LOCALAPPDATA%\VideoStudio\logs\startup.log` (server), `launcher-error.log` (launcher), and `install.log` (installer). Updating validates the extracted app before replacing the old copy and retains the old program folder as `VideoStudio-previous` for recovery.
 

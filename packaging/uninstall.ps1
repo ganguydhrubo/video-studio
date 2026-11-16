@@ -10,8 +10,8 @@ if ($userPath) {
     $clean = ($userPath -split ";" | Where-Object { $_ -and ($_.TrimEnd("\") -ne $dest) }) -join ";"
     [Environment]::SetEnvironmentVariable("Path", $clean, "User")
 }
-Remove-Item (Join-Path ([Environment]::GetFolderPath("Programs")) "Video Studio.lnk") -ErrorAction SilentlyContinue
-Remove-Item (Join-Path ([Environment]::GetFolderPath("Desktop")) "Video Studio.lnk") -ErrorAction SilentlyContinue
+Remove-Item (Join-Path ([Environment]::GetFolderPath("Programs")) "Takebloom.lnk") -ErrorAction SilentlyContinue
+Remove-Item (Join-Path ([Environment]::GetFolderPath("Desktop")) "Takebloom.lnk") -ErrorAction SilentlyContinue
 Remove-Item "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\VideoStudio" -Recurse -ErrorAction SilentlyContinue
 if ($RemoveData) { Remove-Item (Join-Path $env:LOCALAPPDATA "VideoStudio") -Recurse -Force -ErrorAction SilentlyContinue }
 
@@ -20,5 +20,5 @@ Start-Process -WindowStyle Hidden powershell.exe -ArgumentList "-NoProfile", "-C
 Write-Host "Video Studio removed. Your projects and memory were kept$(if ($RemoveData) {' (data removed too)'})."
 if (-not $Quiet) {
     Add-Type -AssemblyName PresentationFramework
-    [System.Windows.MessageBox]::Show("Video Studio was removed.", "Video Studio") | Out-Null
+    [System.Windows.MessageBox]::Show("Video Studio was removed.", "Takebloom") | Out-Null
 }

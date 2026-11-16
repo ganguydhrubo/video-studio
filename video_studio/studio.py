@@ -372,6 +372,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Security-Policy", "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'")
             self.end_headers()
             self.wfile.write(body)
+        elif url.path == "/brand-logo.png":
+            self._file(resource_path("assets", "takebloom-logo.png"))
         elif url.path == "/favicon.ico":
             self._file(resource_path("assets", "app-icon.ico"))
         elif url.path == "/api/health":

@@ -1,4 +1,4 @@
-# Builds dist\VideoStudio-Setup-<version>.exe
+# Builds dist\Takebloom-Setup-<version>.exe
 #  1. isolated build venv (packaging\.venv) with PyInstaller + Pillow + NumPy - nothing installed system-wide
 #  2. PyInstaller one-folder build
 #  3. zip + IExpress (built into Windows) self-extracting setup that runs install.ps1 (per-user, no admin)
@@ -39,9 +39,9 @@ Copy-Item "$pkg\install.ps1", "$pkg\uninstall.ps1", "$pkg\install.cmd" $stage
 $iexpressStage = Join-Path ([IO.Path]::GetTempPath()) ("vs-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Path $iexpressStage | Out-Null
 Copy-Item "$stage\*" $iexpressStage
-$iexpressSetup = Join-Path $iexpressStage "VideoStudio-Setup-$version.exe"
+$iexpressSetup = Join-Path $iexpressStage "Takebloom-Setup-$version.exe"
 
-$setup = Join-Path $dist "VideoStudio-Setup-$version.exe"
+$setup = Join-Path $dist "Takebloom-Setup-$version.exe"
 $sed = @"
 [Version]
 Class=IEXPRESS
@@ -59,7 +59,7 @@ InstallPrompt=
 DisplayLicense=
 FinishMessage=
 TargetName=$iexpressSetup
-FriendlyName=Video Studio $version Setup
+FriendlyName=Takebloom $version Setup
 AppLaunched=install.cmd
 PostInstallCmd=<None>
 AdminQuietInstCmd=install.cmd -Quiet
@@ -88,10 +88,10 @@ try {
 } finally { $env:Path = $buildPath }
 if ($iexpress.ExitCode -ne 0 -or -not (Test-Path $iexpressSetup)) { throw "IExpress failed ($($iexpress.ExitCode)); build files: $iexpressStage" }
 Copy-Item -LiteralPath $iexpressSetup -Destination $setup -Force
-Copy-Item "$stage\VideoStudio.zip" (Join-Path $dist "VideoStudio-$version-portable.zip") -Force
-Copy-Item -LiteralPath $setup -Destination (Join-Path $dist 'VideoStudio-Setup.exe') -Force
+Copy-Item "$stage\VideoStudio.zip" (Join-Path $dist "Takebloom-$version-portable.zip") -Force
+Copy-Item -LiteralPath $setup -Destination (Join-Path $dist 'Takebloom-Setup.exe') -Force
 $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
-@($setup, (Join-Path $dist 'VideoStudio-Setup.exe'), (Join-Path $dist "VideoStudio-$version-portable.zip")) | ForEach-Object {
+@($setup, (Join-Path $dist 'Takebloom-Setup.exe'), (Join-Path $dist "Takebloom-$version-portable.zip")) | ForEach-Object {
     "$((Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLower())  $(Split-Path $_ -Leaf)"
 } | Set-Content (Join-Path $dist "SHA256SUMS.txt")
 Write-Host "Built $setup ($([math]::Round((Get-Item $setup).Length / 1MB, 1)) MB) sha256 $hash"

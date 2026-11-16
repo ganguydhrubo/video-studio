@@ -38,26 +38,31 @@ if (($userPath -split ";") -notcontains $dest) {
 }
 
 # Start menu shortcut
-$menu = Join-Path ([Environment]::GetFolderPath("Programs")) "Video Studio.lnk"
+$menu = Join-Path ([Environment]::GetFolderPath("Programs")) "Takebloom.lnk"
 $ws = New-Object -ComObject WScript.Shell
 $lnk = $ws.CreateShortcut($menu)
 $lnk.TargetPath = Join-Path $dest "VideoStudio.exe"
 $lnk.Arguments = ""
 $lnk.WorkingDirectory = $dest
-$lnk.Description = "Video Studio - edit footage or turn a script into video"
+$lnk.Description = "Takebloom - edit footage or turn a script into video"
 $lnk.Save()
-$desktop = $ws.CreateShortcut((Join-Path ([Environment]::GetFolderPath("Desktop")) "Video Studio.lnk"))
+$desktop = $ws.CreateShortcut((Join-Path ([Environment]::GetFolderPath("Desktop")) "Takebloom.lnk"))
 $desktop.TargetPath = $lnk.TargetPath
 $desktop.WorkingDirectory = $dest
 $desktop.Description = $lnk.Description
 $desktop.Save()
+# Retire the previous display-name shortcuts after the new ones are saved.
+foreach ($location in @([Environment]::GetFolderPath("Desktop"), [Environment]::GetFolderPath("Programs"))) {
+    $oldShortcut = Join-Path $location 'Video Studio.lnk'
+    if (Test-Path -LiteralPath $oldShortcut) { Remove-Item -LiteralPath $oldShortcut -Force }
+}
 
 # Apps & features entry (per user)
 $key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\VideoStudio"
 New-Item -Path $key -Force | Out-Null
 $size = [int]((Get-ChildItem $dest -Recurse | Measure-Object Length -Sum).Sum / 1KB)
 $props = @{
-    DisplayName = "Video Studio"; DisplayVersion = $version; Publisher = "Video Studio"; InstallLocation = $dest
+    DisplayName = "Takebloom"; DisplayVersion = $version; Publisher = "Dhrubo Ganguly"; InstallLocation = $dest
     DisplayIcon = (Join-Path $dest "video-studio.exe"); EstimatedSize = $size; NoModify = 1; NoRepair = 1
     UninstallString = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$dest\uninstall.ps1`""
     QuietUninstallString = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$dest\uninstall.ps1`" -Quiet"
@@ -69,5 +74,5 @@ Write-Host "Installed $ver to $dest"
 Write-Host "Open a NEW terminal and run:  video-studio doctor     (or use 'Video Studio' in the Start menu)"
 if (-not $Quiet) {
     Add-Type -AssemblyName PresentationFramework
-    [System.Windows.MessageBox]::Show("Video Studio is installed.`n`nStart menu: Video Studio`nTerminal: video-studio doctor", "Video Studio") | Out-Null
+    [System.Windows.MessageBox]::Show("Takebloom is installed.`n`nStart menu: Video Studio`nTerminal: video-studio doctor", "Takebloom") | Out-Null
 }
