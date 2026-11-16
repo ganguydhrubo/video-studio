@@ -17,6 +17,10 @@ class GeneratedVideoStream:
         return b'x'*count
 
 class LocalFiles(unittest.TestCase):
+    def test_old_picker_fails_immediately_without_background_dialogs(self):
+        with patch.object(studio.subprocess,'run',side_effect=AssertionError('No modal process allowed')):
+            self.assertIn('Browse files',studio.pick_local_files()['error'])
+
     def test_113_megabyte_file_has_no_arbitrary_upload_cap(self):
         size=113*1024*1024
         stream=GeneratedVideoStream(size)

@@ -26,15 +26,14 @@ class DesktopProgress(unittest.TestCase):
                 self.assertEqual(job.info()['elapsed'],10)
             self.assertIn('last line without a newline',job.lines)
 
-    def test_native_picker_returns_original_unicode_path(self):
+    def test_original_path_supports_unicode_without_spawning_dialogs(self):
         with tempfile.TemporaryDirectory() as folder:
             video=Path(folder)/'আমার ভিডিও.mp4'
             video.write_bytes(b'test')
-            result=Mock(returncode=0,stdout=json.dumps([str(video)]))
-            with patch.object(studio.subprocess,'run',return_value=result):
-                picked=studio.pick_local_files()
-            self.assertEqual(Path(picked['files'][0]['path']),video.resolve())
-            self.assertEqual(picked['files'][0]['size'],4)
+            with patch.object(studio.subprocess,'run',side_effect=AssertionError('No modal process allowed')):
+                picked=studio.register_local_video(str(video))
+            self.assertEqual(Path(picked['file']['path']),video.resolve())
+            self.assertEqual(picked['file']['size'],4)
 
     def test_app_window_uses_installed_edge(self):
         with patch.object(Path,'is_file',return_value=True), patch.object(launcher.subprocess,'Popen') as spawn:

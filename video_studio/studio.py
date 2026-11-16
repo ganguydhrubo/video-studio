@@ -493,7 +493,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(result)
         body = self._body()
         if url.path == "/api/pick-files":
-            return self._json(pick_local_files())
+            return self._json(pick_local_files(), 410)
+        if url.path == "/api/local-file":
+            result = register_local_video(str(body.get("path", "")))
+            return self._json(result, 400 if result.get("error") else 200)
         if url.path == "/api/jobs":
             return self._json(start_job(body))
         if url.path.startswith("/api/jobs/") and url.path.endswith("/cancel"):
@@ -614,34 +617,28 @@ def start_job(body: dict) -> dict:
 
 
 def pick_local_files() -> dict:
-    """Native Windows picker: use original paths without uploading/copying footage."""
-    if os.name != "nt":
-        return {"error": "Native file selection is available on Windows."}
-    script = '''[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
-Add-Type -AssemblyName System.Windows.Forms
-$dialog = New-Object System.Windows.Forms.OpenFileDialog
-$dialog.Title = 'Choose videos from this computer'
-$dialog.Filter = 'Video files|*.mp4;*.mov;*.mkv;*.webm;*.m4v;*.avi|All files|*.*'
-$dialog.Multiselect = $true
-if ($dialog.ShowDialog() -eq 'OK') { ConvertTo-Json -InputObject @($dialog.FileNames) -Compress }
-else { '[]' }
-$dialog.Dispose()'''
-    exe = Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
-    try:
-        result = subprocess.run([str(exe), "-NoProfile", "-STA", "-Command", script], capture_output=True,
-                                text=True, encoding="utf-8", errors="replace", timeout=180, creationflags=0x08000000)
-        if result.returncode:
-            return {"error": "Could not open the native file picker."}
-        paths = json.loads(result.stdout.strip() or "[]")
-        if isinstance(paths, str):
-            paths = [paths]
-        files = [Path(p).resolve() for p in paths if Path(p).is_file()]
-        with LOCK:
-            SELECTED_MEDIA.update(files)
-        return {"files": [{"path": str(p), "name": p.name, "size": p.stat().st_size} for p in files]}
-    except (OSError, ValueError, subprocess.TimeoutExpired):
-        return {"error": "File selection did not complete."}
+    """Retired: HTTP requests must never wait for an external modal dialog."""
+    return {"error": "Use Browse files in the current Takebloom window, or add an existing local file path."}
 
+
+def register_local_video(raw: str) -> dict:
+    try:
+        path = Path(raw.strip().strip('"')).expanduser().resolve()
+    except (OSError, ValueError, RuntimeError):
+        return {"error": "That file path is not valid. Paste the full path to the original video."}
+    if not path.is_file():
+        return {"error": "That file was not found. Paste the full path to the original video."}
+    if path.suffix.lower() not in (".mp4", ".mov", ".mkv", ".webm", ".m4v", ".avi", ".mpeg", ".mpg", ".mts", ".m2ts"):
+        return {"error": "Choose a video file such as MP4, MOV or MKV."}
+    try:
+        size = path.stat().st_size
+        with path.open('rb') as source:
+            source.read(1)
+    except OSError:
+        return {"error": "The video cannot be read. Check its file permissions or choose another copy."}
+    with LOCK:
+        SELECTED_MEDIA.add(path)
+    return {"file": {"path": str(path), "name": path.name, "size": size}}
 
 def _write_brief(root: Path, brief: str) -> Path:
     root.parent.mkdir(parents=True, exist_ok=True)

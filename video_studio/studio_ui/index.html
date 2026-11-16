@@ -434,6 +434,7 @@ textarea,input[type=text],input[type=number],input[type=search],select,.seg,.fil
 @media(max-width:920px){.create{grid-template-columns:1fr}.source-preview{position:relative;top:0;display:block;max-width:none}.source-frame{height:300px}.hero{padding-top:15px}.modes{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.modes{grid-template-columns:1fr}.top .pill{max-width:190px;overflow:hidden;text-overflow:ellipsis}.source-frame{height:250px}}
 
+.drop{position:relative}.file-chooser{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2;display:block}.drop:focus-within{outline:2px solid #69956b;outline-offset:4px}.browse-label{margin-top:16px;font-family:var(--display)!important;letter-spacing:0!important;text-transform:none!important;padding:9px 18px!important;font-size:13px!important}.local-path-option{margin:13px 0 4px;font-size:11px;color:#72856c}.local-path-option summary{cursor:pointer}.local-path-option .row{margin:12px 0 8px;flex-wrap:nowrap}.local-path-option input{flex:1;min-width:0}.local-path-option button{white-space:nowrap;font-size:12px}
 </style>
 </head>
 <body data-scene="create">
@@ -482,13 +483,13 @@ textarea,input[type=text],input[type=number],input[type=search],select,.seg,.fil
 
   <div class="card">
     <div id="editInputs">
-      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Add video files">
+      <div class="drop" id="drop">
         <div class="up"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg></div>
         <strong>1 · Choose your clips</strong>
         <span>Browse this PC, or drop videos here · No fixed file-size limit</span>
-        <input type="file" id="fileInput" accept="video/*" multiple hidden>
+        <span class="btn primary browse-label" aria-hidden="true">Browse files</span><input type="file" id="fileInput" class="file-chooser" aria-label="Choose video files from this computer" accept="video/*,.mp4,.mov,.mkv,.webm,.m4v,.avi" multiple>
       </div>
-      <div class="files" id="files"></div><p class="local-note">Your clips stay on this PC. Native selection reads them directly; drag-and-drop makes a local copy. Optional AI uses transcript text.</p>
+      <details class="local-path-option"><summary>Use an existing file path without copying</summary><div class="row"><input type="text" id="localPath" placeholder="C:\Videos\my-clip.mov" aria-label="Original video path"><button type="button" class="btn" id="addLocalPath">Add local file</button></div><span id="localPathMessage" class="hint" role="status"></span></details><div class="files" id="files"></div><p class="local-note">Your clips stay on this PC. Browsing or dropping makes a local working copy; the file-path option reads the original directly. Optional AI uses transcript text.</p>
     </div>
     <div id="scriptInputs" hidden>
       <label class="lbl" for="script" style="margin-top:0">Script</label>
@@ -609,13 +610,13 @@ const TOKEN = "__TOKEN__";
 const $ = s => document.querySelector(s);
 const api = async (path, opts = {}) => {
   const controller = new AbortController();
-  const timer = (!opts.method || opts.method === "GET") ? setTimeout(() => controller.abort(), 15000) : null;
+  const timer = setTimeout(() => controller.abort(), 15000);
   try {
   const r = await fetch(path, {...opts, signal: opts.signal || controller.signal, headers: {"Content-Type": "application/json", "X-Studio-Token": TOKEN, ...(opts.headers || {})}});
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || r.statusText);
   return j;
-  } finally { if (timer) clearTimeout(timer); }
+  } catch(e) { if(e.name === "AbortError") throw new Error("Takebloom did not respond. Close old app windows and open the desktop shortcut again."); throw e; } finally { clearTimeout(timer); }
 };
 const media = p => "/media?path=" + encodeURIComponent(p);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -806,17 +807,20 @@ $("#aspect").addEventListener("click", e => {
 });
 /* uploads */
 const drop = $("#drop");
-async function chooseLocalFiles() {
+// The real input receives the user's click directly. No network request,
+// background dialog process or expired browser activation can block browsing.
+$("#fileInput").onchange = e => { addFiles(e.target.files); e.target.value = ""; };
+$("#addLocalPath").onclick=async()=>{
+  const button=$("#addLocalPath");button.disabled=true;
+  $("#localPathMessage").textContent="Checking the file on this PC…";
   try {
-    const response = await api("/api/pick-files", {method:"POST",body:"{}"});
-    if (response.error) throw new Error(response.error);
-    for (const file of response.files || []) if (!S.files.some(f => f.path === file.path)) S.files.push({...file,pct:100});
-    renderFiles();
-  } catch(e) { if(/earlier app session/.test(e.message)) { toast(e.message); return; } toast("Native file selection unavailable. Choose files in the browser instead."); $("#fileInput").click(); }
-}
-drop.onclick = chooseLocalFiles;
-drop.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); chooseLocalFiles(); } };
-$("#fileInput").onchange = e => addFiles(e.target.files);
+    const result=await api("/api/local-file",{method:"POST",body:JSON.stringify({path:$("#localPath").value})});
+    if(result.error) throw new Error(result.error);
+    if(!S.files.some(f=>f.path===result.file.path)) S.files.push({...result.file,pct:100});
+    renderFiles();$("#localPathMessage").textContent="Ready. The original is used directly; no working copy was made.";
+  } catch(e) { $("#localPathMessage").textContent=e.message; }
+  finally { button.disabled=false; }
+};
 ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); World.pull(true); }));
 ["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); World.pull(false); }));
 drop.addEventListener("drop", e => addFiles(e.dataTransfer.files));
