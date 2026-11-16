@@ -406,6 +406,8 @@ class Handler(BaseHTTPRequestHandler):
             self._file(resource_path("assets", "takebloom-logo.png"))
         elif url.path == "/favicon.ico":
             self._file(resource_path("assets", "app-icon.ico"))
+        elif url.path == "/font/display.ttf":
+            self._file(resource_path("assets", "fonts", "InstrumentSerif-Italic.ttf"))
         elif url.path == "/api/health":
             self._json({"app": "VideoStudio", "version": __version__, "pid": os.getpid()})
         elif url.path == "/api/projects":
@@ -676,6 +678,15 @@ def refine(body: dict) -> dict:
             opts["opening"] = str(body["opening"])
         proj.save(data)
         job = Job("edit", ["resume", "--from", "plan", "--project", str(root)], root, data["name"] + " (your changes)")
+        JOBS[job.id] = job
+        job.start()
+        return {"job": job.id, "root": str(root)}
+    if body.get("action") == "resume":
+        # Continue an interrupted project from its first unfinished stage. One job per project at a time.
+        for running in list(JOBS.values()):
+            if running.root == root and running.status in ("running", "stopping"):
+                return {"job": running.id, "root": str(root)}
+        job = Job(data.get("kind", "edit"), ["resume", "--project", str(root)], root, data["name"])
         JOBS[job.id] = job
         job.start()
         return {"job": job.id, "root": str(root)}

@@ -56,7 +56,7 @@ Local-first video production for Windows. Free editing tools, with optional AI p
 
 ## Install
 
-1. Run `Takebloom-Setup-1.5.2.exe`. It installs per user, adds itself to PATH and creates Desktop and Start-menu shortcuts called "Takebloom". Open either shortcut, or double-click `VideoStudio.exe` in the portable folder. A separate Edge app window opens after the local server is ready; the default browser is used if Edge is unavailable. No terminal needs to stay open. Uninstall from Settings › Apps; your projects and memory are kept.
+1. Run `Takebloom-Setup-1.6.0.exe`. It installs per user, adds itself to PATH and creates Desktop and Start-menu shortcuts called "Takebloom". Open either shortcut, or double-click `VideoStudio.exe` in the portable folder. A separate Edge app window opens after the local server is ready; the default browser is used if Edge is unavailable. No terminal needs to stay open. Uninstall from Settings › Apps; your projects and memory are kept.
 2. Run `video-studio setup` (or open the Studio's System page). It scans this PC, explains in plain English what it can
    and cannot edit, and installs everything it needs after one confirmation (~1.5 GB, all free and open source).
    `video-studio setup --report` only scans. `video-studio doctor` lists every tool with the exact fix:
@@ -70,7 +70,7 @@ Local-first video production for Windows. Free editing tools, with optional AI p
 
    Every install shows the plan and the licence first, then asks before it runs.
 
-A portable zip (`Takebloom-1.5.2-portable.zip`) is also built. Extract the entire archive before opening `VideoStudio.exe`; keep `_internal` beside both executables. `video-studio.exe` remains the command-line entry and opens Studio when run without arguments. To run from source, use `pip install -e .` and then `video-studio ...`.
+A portable zip (`Takebloom-1.6.0-portable.zip`) is also built. Extract the entire archive before opening `VideoStudio.exe`; keep `_internal` beside both executables. `video-studio.exe` remains the command-line entry and opens Studio when run without arguments. To run from source, use `pip install -e .` and then `video-studio ...`.
 
 If startup fails, the desktop launcher shows the error. Logs are in `%LOCALAPPDATA%\VideoStudio\logs\startup.log` (server), `launcher-error.log` (launcher), and `install.log` (installer). Updating validates the extracted app before replacing the old copy and retains the old program folder as `VideoStudio-previous` for recovery.
 
