@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+packaging/.venv/
+packaging/build/
+packaging/stage/
+packaging/build_log.txt
+packaging/setup.sed
+dist/
+*.egg-info/
+# rendered media and footage are never committed
+*.mp4
+*.mov
+*.mkv
+*.wav

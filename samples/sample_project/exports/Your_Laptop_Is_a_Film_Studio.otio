@@ -1,0 +1,621 @@
+{
+ "OTIO_SCHEMA": "Timeline.1",
+ "name": "Your Laptop Is a Film Studio",
+ "metadata": {
+  "generator": "Video Studio"
+ },
+ "global_start_time": null,
+ "tracks": {
+  "OTIO_SCHEMA": "Stack.1",
+  "name": "tracks",
+  "children": [
+   {
+    "OTIO_SCHEMA": "Track.1",
+    "name": "V1",
+    "kind": "Video",
+    "children": [
+     {
+      "OTIO_SCHEMA": "Clip.2",
+      "name": "scene 1",
+      "metadata": {},
+      "enabled": true,
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 180
+       }
+      },
+      "media_references": {
+       "DEFAULT_MEDIA": {
+        "OTIO_SCHEMA": "ExternalReference.1",
+        "target_url": "file:///C:/Users/Dhrubo/projects/video-studio/samples/sample_project/build/scenes/s01_e2f6eb6c39.mp4",
+        "available_range": null,
+        "metadata": {},
+        "name": "s01_e2f6eb6c39.mp4"
+       }
+      },
+      "active_media_reference_key": "DEFAULT_MEDIA",
+      "effects": [],
+      "markers": []
+     },
+     {
+      "OTIO_SCHEMA": "Transition.1",
+      "name": "fade",
+      "transition_type": "SMPTE_Dissolve",
+      "in_offset": {
+       "OTIO_SCHEMA": "RationalTime.1",
+       "rate": 30.0,
+       "value": 7
+      },
+      "out_offset": {
+       "OTIO_SCHEMA": "RationalTime.1",
+       "rate": 30.0,
+       "value": 7
+      },
+      "metadata": {}
+     },
+     {
+      "OTIO_SCHEMA": "Clip.2",
+      "name": "scene 2",
+      "metadata": {},
+      "enabled": true,
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 255
+       }
+      },
+      "media_references": {
+       "DEFAULT_MEDIA": {
+        "OTIO_SCHEMA": "ExternalReference.1",
+        "target_url": "file:///C:/Users/Dhrubo/projects/video-studio/samples/sample_project/build/scenes/s02_40facb98d3.mp4",
+        "available_range": null,
+        "metadata": {},
+        "name": "s02_40facb98d3.mp4"
+       }
+      },
+      "active_media_reference_key": "DEFAULT_MEDIA",
+      "effects": [],
+      "markers": []
+     },
+     {
+      "OTIO_SCHEMA": "Transition.1",
+      "name": "smoothleft",
+      "transition_type": "SMPTE_Dissolve",
+      "in_offset": {
+       "OTIO_SCHEMA": "RationalTime.1",
+       "rate": 30.0,
+       "value": 7
+      },
+      "out_offset": {
+       "OTIO_SCHEMA": "RationalTime.1",
+       "rate": 30.0,
+       "value": 7
+      },
+      "metadata": {}
+     },
+     {
+      "OTIO_SCHEMA": "Clip.2",
+      "name": "scene 3",
+      "metadata": {},
+      "enabled": true,
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 211
+       }
+      },
+      "media_references": {
+       "DEFAULT_MEDIA": {
+        "OTIO_SCHEMA": "ExternalReference.1",
+        "target_url": "file:///C:/Users/Dhrubo/projects/video-studio/samples/sample_project/build/scenes/s03_8a5f6614bc.mp4",
+        "available_range": null,
+        "metadata": {},
+        "name": "s03_8a5f6614bc.mp4"
+       }
+      },
+      "active_media_reference_key": "DEFAULT_MEDIA",
+      "effects": [],
+      "markers": []
+     },
+     {
+      "OTIO_SCHEMA": "Transition.1",
+      "name": "circleopen",
+      "transition_type": "SMPTE_Dissolve",
+      "in_offset": {
+       "OTIO_SCHEMA": "RationalTime.1",
+       "rate": 30.0,
+       "value": 7
+      },
+      "out_offset": {
+       "OTIO_SCHEMA": "RationalTime.1",
+       "rate": 30.0,
+       "value": 7
+      },
+      "metadata": {}
+     },
+     {
+      "OTIO_SCHEMA": "Clip.2",
+      "name": "scene 4",
+      "metadata": {},
+      "enabled": true,
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 224
+       }
+      },
+      "media_references": {
+       "DEFAULT_MEDIA": {
+        "OTIO_SCHEMA": "ExternalReference.1",
+        "target_url": "file:///C:/Users/Dhrubo/projects/video-studio/samples/sample_project/build/scenes/s04_d21bd1bfdb.mp4",
+        "available_range": null,
+        "metadata": {},
+        "name": "s04_d21bd1bfdb.mp4"
+       }
+      },
+      "active_media_reference_key": "DEFAULT_MEDIA",
+      "effects": [],
+      "markers": []
+     },
+     {
+      "OTIO_SCHEMA": "Transition.1",
+      "name": "smoothup",
+      "transition_type": "SMPTE_Dissolve",
+      "in_offset": {
+       "OTIO_SCHEMA": "RationalTime.1",
+       "rate": 30.0,
+       "value": 7
+      },
+      "out_offset": {
+       "OTIO_SCHEMA": "RationalTime.1",
+       "rate": 30.0,
+       "value": 7
+      },
+      "metadata": {}
+     },
+     {
+      "OTIO_SCHEMA": "Clip.2",
+      "name": "scene 5",
+      "metadata": {},
+      "enabled": true,
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 166
+       }
+      },
+      "media_references": {
+       "DEFAULT_MEDIA": {
+        "OTIO_SCHEMA": "ExternalReference.1",
+        "target_url": "file:///C:/Users/Dhrubo/projects/video-studio/samples/sample_project/build/scenes/s05_270cc529af.mp4",
+        "available_range": null,
+        "metadata": {},
+        "name": "s05_270cc529af.mp4"
+       }
+      },
+      "active_media_reference_key": "DEFAULT_MEDIA",
+      "effects": [],
+      "markers": []
+     },
+     {
+      "OTIO_SCHEMA": "Transition.1",
+      "name": "fade",
+      "transition_type": "SMPTE_Dissolve",
+      "in_offset": {
+       "OTIO_SCHEMA": "RationalTime.1",
+       "rate": 30.0,
+       "value": 7
+      },
+      "out_offset": {
+       "OTIO_SCHEMA": "RationalTime.1",
+       "rate": 30.0,
+       "value": 7
+      },
+      "metadata": {}
+     },
+     {
+      "OTIO_SCHEMA": "Clip.2",
+      "name": "scene 6",
+      "metadata": {},
+      "enabled": true,
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 139
+       }
+      },
+      "media_references": {
+       "DEFAULT_MEDIA": {
+        "OTIO_SCHEMA": "ExternalReference.1",
+        "target_url": "file:///C:/Users/Dhrubo/projects/video-studio/samples/sample_project/build/scenes/s06_b2bf75901e.mp4",
+        "available_range": null,
+        "metadata": {},
+        "name": "s06_b2bf75901e.mp4"
+       }
+      },
+      "active_media_reference_key": "DEFAULT_MEDIA",
+      "effects": [],
+      "markers": []
+     }
+    ],
+    "source_range": null,
+    "effects": [],
+    "markers": [],
+    "metadata": {},
+    "enabled": true
+   },
+   {
+    "OTIO_SCHEMA": "Track.1",
+    "name": "A1",
+    "kind": "Audio",
+    "children": [
+     {
+      "OTIO_SCHEMA": "Gap.1",
+      "name": "",
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 8
+       }
+      },
+      "effects": [],
+      "markers": [],
+      "metadata": {},
+      "enabled": true
+     },
+     {
+      "OTIO_SCHEMA": "Clip.2",
+      "name": "voice",
+      "metadata": {},
+      "enabled": true,
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 163
+       }
+      },
+      "media_references": {
+       "DEFAULT_MEDIA": {
+        "OTIO_SCHEMA": "ExternalReference.1",
+        "target_url": "file:///C:/Users/Dhrubo/projects/video-studio/samples/sample_project/build/voice/s01_23fdd147e4286b56.polished.wav",
+        "available_range": null,
+        "metadata": {},
+        "name": "s01_23fdd147e4286b56.polished.wav"
+       }
+      },
+      "active_media_reference_key": "DEFAULT_MEDIA",
+      "effects": [],
+      "markers": []
+     },
+     {
+      "OTIO_SCHEMA": "Gap.1",
+      "name": "",
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 16
+       }
+      },
+      "effects": [],
+      "markers": [],
+      "metadata": {},
+      "enabled": true
+     },
+     {
+      "OTIO_SCHEMA": "Clip.2",
+      "name": "voice",
+      "metadata": {},
+      "enabled": true,
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 225
+       }
+      },
+      "media_references": {
+       "DEFAULT_MEDIA": {
+        "OTIO_SCHEMA": "ExternalReference.1",
+        "target_url": "file:///C:/Users/Dhrubo/projects/video-studio/samples/sample_project/build/voice/s02_a8c3a48f9931f52b.polished.wav",
+        "available_range": null,
+        "metadata": {},
+        "name": "s02_a8c3a48f9931f52b.polished.wav"
+       }
+      },
+      "active_media_reference_key": "DEFAULT_MEDIA",
+      "effects": [],
+      "markers": []
+     },
+     {
+      "OTIO_SCHEMA": "Gap.1",
+      "name": "",
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 16
+       }
+      },
+      "effects": [],
+      "markers": [],
+      "metadata": {},
+      "enabled": true
+     },
+     {
+      "OTIO_SCHEMA": "Clip.2",
+      "name": "voice",
+      "metadata": {},
+      "enabled": true,
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 181
+       }
+      },
+      "media_references": {
+       "DEFAULT_MEDIA": {
+        "OTIO_SCHEMA": "ExternalReference.1",
+        "target_url": "file:///C:/Users/Dhrubo/projects/video-studio/samples/sample_project/build/voice/s03_2af408949ef9c402.polished.wav",
+        "available_range": null,
+        "metadata": {},
+        "name": "s03_2af408949ef9c402.polished.wav"
+       }
+      },
+      "active_media_reference_key": "DEFAULT_MEDIA",
+      "effects": [],
+      "markers": []
+     },
+     {
+      "OTIO_SCHEMA": "Gap.1",
+      "name": "",
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 17
+       }
+      },
+      "effects": [],
+      "markers": [],
+      "metadata": {},
+      "enabled": true
+     },
+     {
+      "OTIO_SCHEMA": "Clip.2",
+      "name": "voice",
+      "metadata": {},
+      "enabled": true,
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 194
+       }
+      },
+      "media_references": {
+       "DEFAULT_MEDIA": {
+        "OTIO_SCHEMA": "ExternalReference.1",
+        "target_url": "file:///C:/Users/Dhrubo/projects/video-studio/samples/sample_project/build/voice/s04_297b0eae2b9b9a78.polished.wav",
+        "available_range": null,
+        "metadata": {},
+        "name": "s04_297b0eae2b9b9a78.polished.wav"
+       }
+      },
+      "active_media_reference_key": "DEFAULT_MEDIA",
+      "effects": [],
+      "markers": []
+     },
+     {
+      "OTIO_SCHEMA": "Gap.1",
+      "name": "",
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 17
+       }
+      },
+      "effects": [],
+      "markers": [],
+      "metadata": {},
+      "enabled": true
+     },
+     {
+      "OTIO_SCHEMA": "Clip.2",
+      "name": "voice",
+      "metadata": {},
+      "enabled": true,
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 136
+       }
+      },
+      "media_references": {
+       "DEFAULT_MEDIA": {
+        "OTIO_SCHEMA": "ExternalReference.1",
+        "target_url": "file:///C:/Users/Dhrubo/projects/video-studio/samples/sample_project/build/voice/s05_98bb283c5479363a.polished.wav",
+        "available_range": null,
+        "metadata": {},
+        "name": "s05_98bb283c5479363a.polished.wav"
+       }
+      },
+      "active_media_reference_key": "DEFAULT_MEDIA",
+      "effects": [],
+      "markers": []
+     },
+     {
+      "OTIO_SCHEMA": "Gap.1",
+      "name": "",
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 16
+       }
+      },
+      "effects": [],
+      "markers": [],
+      "metadata": {},
+      "enabled": true
+     },
+     {
+      "OTIO_SCHEMA": "Clip.2",
+      "name": "voice",
+      "metadata": {},
+      "enabled": true,
+      "source_range": {
+       "OTIO_SCHEMA": "TimeRange.1",
+       "start_time": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 0
+       },
+       "duration": {
+        "OTIO_SCHEMA": "RationalTime.1",
+        "rate": 30.0,
+        "value": 85
+       }
+      },
+      "media_references": {
+       "DEFAULT_MEDIA": {
+        "OTIO_SCHEMA": "ExternalReference.1",
+        "target_url": "file:///C:/Users/Dhrubo/projects/video-studio/samples/sample_project/build/voice/s06_9f72c5c5cfd2ee0e.polished.wav",
+        "available_range": null,
+        "metadata": {},
+        "name": "s06_9f72c5c5cfd2ee0e.polished.wav"
+       }
+      },
+      "active_media_reference_key": "DEFAULT_MEDIA",
+      "effects": [],
+      "markers": []
+     }
+    ],
+    "source_range": null,
+    "effects": [],
+    "markers": [],
+    "metadata": {},
+    "enabled": true
+   }
+  ],
+  "source_range": null,
+  "effects": [],
+  "markers": [],
+  "metadata": {},
+  "enabled": true
+ }
+}

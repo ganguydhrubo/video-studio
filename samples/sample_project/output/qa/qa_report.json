@@ -1,0 +1,116 @@
+{
+  "video": "C:\\Users\\Dhrubo\\projects\\video-studio\\samples\\sample_project\\output\\master.mp4",
+  "duration": 36.932,
+  "size": 2579771,
+  "items": [
+    {
+      "check": "video codec",
+      "status": "PASS",
+      "detail": "h264 yuv420p High",
+      "value": null
+    },
+    {
+      "check": "audio codec",
+      "status": "PASS",
+      "detail": "aac 48000 Hz 2ch",
+      "value": null
+    },
+    {
+      "check": "resolution",
+      "status": "PASS",
+      "detail": "1080x1920 (expected 1080x1920)",
+      "value": [
+        1080,
+        1920
+      ]
+    },
+    {
+      "check": "aspect ratio",
+      "status": "PASS",
+      "detail": "0.5625",
+      "value": null
+    },
+    {
+      "check": "frame rate",
+      "status": "PASS",
+      "detail": "30.000 fps",
+      "value": 30.0
+    },
+    {
+      "check": "duration",
+      "status": "PASS",
+      "detail": "36.93s (planned 36.93s)",
+      "value": 36.932
+    },
+    {
+      "check": "A/V sync (stream length)",
+      "status": "PASS",
+      "detail": "video 36.900s / audio 36.932s",
+      "value": 0.03200000000000358
+    },
+    {
+      "check": "fast start (moov first)",
+      "status": "PASS",
+      "detail": "web-optimised MP4",
+      "value": null
+    },
+    {
+      "check": "full decode",
+      "status": "PASS",
+      "detail": "decoded every frame",
+      "value": null
+    },
+    {
+      "check": "black frames",
+      "status": "PASS",
+      "detail": "none",
+      "value": []
+    },
+    {
+      "check": "frozen video",
+      "status": "PASS",
+      "detail": "none",
+      "value": null
+    },
+    {
+      "check": "dead air",
+      "status": "PASS",
+      "detail": "none",
+      "value": []
+    },
+    {
+      "check": "loudness (EBU R128)",
+      "status": "PASS",
+      "detail": "-14.0 LUFS (target -14.0)",
+      "value": -14.0
+    },
+    {
+      "check": "true peak / clipping",
+      "status": "PASS",
+      "detail": "-1.4 dBTP",
+      "value": -1.4
+    },
+    {
+      "check": "frame inspection",
+      "status": "PASS",
+      "detail": "8 frames checked, all have content",
+      "value": null
+    },
+    {
+      "check": "exposure",
+      "status": "PASS",
+      "detail": "no blown-out frames",
+      "value": null
+    },
+    {
+      "check": "captions timing",
+      "status": "PASS",
+      "detail": "20 cues, 0 out of range/overlapping",
+      "value": null
+    }
+  ],
+  "fails": 0,
+  "warnings": 0,
+  "score": 100,
+  "contact_sheet": "C:\\Users\\Dhrubo\\projects\\video-studio\\samples\\sample_project\\output\\qa\\contact_sheet.jpg"
+}

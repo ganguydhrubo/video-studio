@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Logo concept: a K made of a cut and a play arrow">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7a45"/><stop offset="1" stop-color="#ffb86b"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="#0b0c10"/>
+  <!-- the stem: the timeline's playhead -->
+  <rect x="132" y="112" width="64" height="288" rx="20" fill="#f1f2f4"/>
+  <!-- the arm and leg: one play arrow, cut in two -->
+  <path d="M236 244 L236 136 Q236 112 258 124 L392 204 Q404 212 392 222 L262 268 Q236 276 236 244 Z" fill="url(#g)"/>
+  <path d="M236 372 L236 316 Q236 300 252 294 L330 268 Q344 264 352 276 L392 356 Q402 378 378 384 L262 398 Q236 400 236 372 Z" fill="url(#g)" opacity=".55"/>
+</svg>

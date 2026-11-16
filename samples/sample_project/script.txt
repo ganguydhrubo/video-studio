@@ -1,0 +1,17 @@
+# Your Laptop Is a Film Studio
+
+What if your laptop could make a finished video while you make tea?
+
+Video Studio reads your script, plans every scene, and directs real production tools like Blender and FFmpeg.
+
+Here is how it works:
+- Write your script
+- Describe the vibe
+- Approve the storyboard
+- Get a finished video
+
+It runs on your own computer, so your footage never leaves your desk. And it costs exactly 0 rupees.
+
+Every time you rate a video, it learns your taste and makes the next one better.
+
+Try it today and turn your ideas into videos.

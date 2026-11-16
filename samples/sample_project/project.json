@@ -1,0 +1,30 @@
+{
+  "id": "your-laptop-is-a-film-studio-ddc78e",
+  "name": "Your Laptop Is a Film Studio",
+  "kind": "script",
+  "created": 1794723461.2436848,
+  "updated": 1794723461.2877085,
+  "app_version": "1.0.0",
+  "settings": {
+    "aspect": "9:16",
+    "height": 1920,
+    "fps": 30,
+    "quality": "draft",
+    "voice": "male",
+    "voice_rate": 0,
+    "captions_enabled": true,
+    "music_enabled": true,
+    "music_file": "",
+    "motion_engine": "canvas",
+    "use_blender": true,
+    "style": "cinematic",
+    "loudness": -14.0,
+    "ai_provider": "claude",
+    "look": "",
+    "pacing": "",
+    "transition": "",
+    "music": "",
+    "captions": "",
+    "motion": ""
+  }
+}

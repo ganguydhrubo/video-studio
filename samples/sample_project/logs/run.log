@@ -1,0 +1,164 @@
+2026-11-15 11:47:41 [STEP] Reading the script and planning scenes
+2026-11-15 11:47:41 [DEBUG] $ C:\Users\Dhrubo\AppData\Roaming\npm\claude.CMD --version
+2026-11-15 11:47:41 [DEBUG] $ C:\Users\Dhrubo\AppData\Roaming\npm\claude.CMD auth status --json
+2026-11-15 11:47:42 [DEBUG] $ C:\Users\Dhrubo\AppData\Roaming\npm\codex.CMD --version
+2026-11-15 11:47:43 [DEBUG] $ C:\Users\Dhrubo\AppData\Roaming\npm\codex.CMD login status
+2026-11-15 11:47:43 [DEBUG] $ C:\Users\Dhrubo\AppData\Roaming\npm\gemini.CMD --version
+2026-11-15 11:47:47 [DEBUG] $ C:\Users\Dhrubo\AppData\Roaming\npm\qwen.CMD --version
+2026-11-15 11:47:47 [STEP] AI director (Claude Code) - script analysis + storyboard
+2026-11-15 11:47:47 [DEBUG] $ C:\Users\Dhrubo\AppData\Roaming\npm\claude.CMD -p --output-format json --no-session-persistence --disallowedTools Bash Edit Write NotebookEdit WebFetch WebSearch Task
+2026-11-15 11:48:04 [OK] Claude Code answered in 17s
+2026-11-15 11:48:04 [OK] Plan ready: 6 scenes, tone 'upbeat', planner ai:claude
+2026-11-15 11:48:04 [INFO]     look       forest      (planner suggestion)
+2026-11-15 11:48:04 [INFO]     transition smooth      (planner suggestion)
+2026-11-15 11:48:04 [INFO]     pacing     fast        (planner suggestion)
+2026-11-15 11:48:04 [INFO]     captions   clean       (planner suggestion)
+2026-11-15 11:48:04 [INFO]     music      calm        (planner suggestion)
+2026-11-15 11:48:04 [INFO]     motion     maximal     (planner suggestion)
+2026-11-15 11:48:04 [INFO]     hook       bold_claim  (planner suggestion)
+2026-11-15 11:48:05 [STEP] Drawing storyboard frames (6 panels)
+2026-11-15 11:48:05 [DEBUG] $ C:\Program Files\Blender Foundation\Blender 5.2\blender.exe --background --factory-startup --python-exit-code 3 --python C:\Users\Dhrubo\projects\video-studio\video_studio\blender\scene_builder.py -- C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\storyboard\w_s01\preview.json
+2026-11-15 11:48:22 [DEBUG] $ C:\Program Files\Blender Foundation\Blender 5.2\blender.exe --background --factory-startup --python-exit-code 3 --python C:\Users\Dhrubo\projects\video-studio\video_studio\blender\scene_builder.py -- C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\storyboard\w_s05\preview.json
+2026-11-15 11:48:46 [OK] Storyboard: C:\Users\Dhrubo\projects\video-studio\samples\sample_project\storyboard.png
+2026-11-15 11:48:46 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Programs\Python\Python313\python.exe -E -P -c import importlib.util,sys;sys.exit(0 if importlib.util.find_spec('kokoro_onnx') else 1)
+2026-11-15 11:48:46 [STEP] Voiceover: 6 line(s) with kokoro (am_michael)
+2026-11-15 11:48:46 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Programs\Python\Python313\python.exe -E -P C:\Users\Dhrubo\projects\video-studio\video_studio\helpers\ml_helper.py kokoro --out C:\Users\Dhrubo\AppData\Local\Temp\vs-kokoro-6_ei5nmc.json --items C:\Users\Dhrubo\AppData\Local\Temp\vs-kokoro-axnabqdi.json --voice am_michael --speed 1.15 --lang a --model-dir C:\Users\Dhrubo\AppData\Local\VideoStudio\models\kokoro
+2026-11-15 11:51:57 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffprobe.EXE -v error -print_format json -show_format -show_streams C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s01_23fdd147e4286b56.wav
+2026-11-15 11:51:58 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffprobe.EXE -v error -print_format json -show_format -show_streams C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s02_a8c3a48f9931f52b.wav
+2026-11-15 11:51:58 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffprobe.EXE -v error -print_format json -show_format -show_streams C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s03_2af408949ef9c402.wav
+2026-11-15 11:51:58 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffprobe.EXE -v error -print_format json -show_format -show_streams C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s04_297b0eae2b9b9a78.wav
+2026-11-15 11:51:58 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffprobe.EXE -v error -print_format json -show_format -show_streams C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s05_98bb283c5479363a.wav
+2026-11-15 11:51:58 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffprobe.EXE -v error -print_format json -show_format -show_streams C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s06_9f72c5c5cfd2ee0e.wav
+2026-11-15 11:51:58 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Programs\Python\Python313\python.exe -E -P -c import importlib.util,sys;sys.exit(0 if importlib.util.find_spec('faster_whisper') else 1)
+2026-11-15 11:51:58 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -f lavfi -i anullsrc=r=24000:cl=mono -t 0.6 -c:a pcm_s16le C:\Users\Dhrubo\AppData\Local\Temp\vs-align-g14xa2wo\gap.wav
+2026-11-15 11:51:59 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:51:59 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -f concat -safe 0 -i C:\Users\Dhrubo\AppData\Local\Temp\vs-align-g14xa2wo\list.txt -ar 24000 -ac 1 -c:a pcm_s16le C:\Users\Dhrubo\AppData\Local\Temp\vs-align-g14xa2wo\joined.wav
+2026-11-15 11:51:59 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:51:59 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -i C:\Users\Dhrubo\AppData\Local\Temp\vs-align-g14xa2wo\joined.wav -vn -ac 1 -ar 16000 -c:a pcm_s16le C:\Users\Dhrubo\AppData\Local\Temp\vs-asr-tp4sl09f\audio16k.wav
+2026-11-15 11:51:59 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:51:59 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Programs\Python\Python313\python.exe -E -P C:\Users\Dhrubo\projects\video-studio\video_studio\helpers\ml_helper.py transcribe --out C:\Users\Dhrubo\AppData\Local\Temp\vs-transcribe-3q3gvir3.json --audio C:\Users\Dhrubo\AppData\Local\Temp\vs-asr-tp4sl09f\audio16k.wav --model base.en --language  --threads 14
+2026-11-15 11:52:17 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s01_23fdd147e4286b56.wav -af highpass=f=70,lowpass=f=15000,equalizer=f=180:t=q:w=1.2:g=1.5,equalizer=f=3200:t=q:w=1.4:g=2.5,equalizer=f=7000:t=q:w=2:g=-1.5,acompressor=threshold=-20dB:ratio=3:attack=8:release=120:makeup=2,alimiter=limit=0.89 -ar 48000 -ac 1 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s01_23fdd147e4286b56.polished.wav
+2026-11-15 11:52:18 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:52:18 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s02_a8c3a48f9931f52b.wav -af highpass=f=70,lowpass=f=15000,equalizer=f=180:t=q:w=1.2:g=1.5,equalizer=f=3200:t=q:w=1.4:g=2.5,equalizer=f=7000:t=q:w=2:g=-1.5,acompressor=threshold=-20dB:ratio=3:attack=8:release=120:makeup=2,alimiter=limit=0.89 -ar 48000 -ac 1 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s02_a8c3a48f9931f52b.polished.wav
+2026-11-15 11:52:18 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:52:18 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s03_2af408949ef9c402.wav -af highpass=f=70,lowpass=f=15000,equalizer=f=180:t=q:w=1.2:g=1.5,equalizer=f=3200:t=q:w=1.4:g=2.5,equalizer=f=7000:t=q:w=2:g=-1.5,acompressor=threshold=-20dB:ratio=3:attack=8:release=120:makeup=2,alimiter=limit=0.89 -ar 48000 -ac 1 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s03_2af408949ef9c402.polished.wav
+2026-11-15 11:52:18 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:52:18 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s04_297b0eae2b9b9a78.wav -af highpass=f=70,lowpass=f=15000,equalizer=f=180:t=q:w=1.2:g=1.5,equalizer=f=3200:t=q:w=1.4:g=2.5,equalizer=f=7000:t=q:w=2:g=-1.5,acompressor=threshold=-20dB:ratio=3:attack=8:release=120:makeup=2,alimiter=limit=0.89 -ar 48000 -ac 1 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s04_297b0eae2b9b9a78.polished.wav
+2026-11-15 11:52:18 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:52:18 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s05_98bb283c5479363a.wav -af highpass=f=70,lowpass=f=15000,equalizer=f=180:t=q:w=1.2:g=1.5,equalizer=f=3200:t=q:w=1.4:g=2.5,equalizer=f=7000:t=q:w=2:g=-1.5,acompressor=threshold=-20dB:ratio=3:attack=8:release=120:makeup=2,alimiter=limit=0.89 -ar 48000 -ac 1 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s05_98bb283c5479363a.polished.wav
+2026-11-15 11:52:18 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:52:18 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s06_9f72c5c5cfd2ee0e.wav -af highpass=f=70,lowpass=f=15000,equalizer=f=180:t=q:w=1.2:g=1.5,equalizer=f=3200:t=q:w=1.4:g=2.5,equalizer=f=7000:t=q:w=2:g=-1.5,acompressor=threshold=-20dB:ratio=3:attack=8:release=120:makeup=2,alimiter=limit=0.89 -ar 48000 -ac 1 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s06_9f72c5c5cfd2ee0e.polished.wav
+2026-11-15 11:52:18 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:52:18 [STEP] Scene s02 (kinetic, 8.5s)
+2026-11-15 11:52:18 [STEP] 3D scene s01 (object3d, 6.0s)
+2026-11-15 11:53:07 [STEP] Scene s03 (list, 7.0s)
+2026-11-15 11:53:37 [STEP] Scene s04 (stat, 7.5s)
+2026-11-15 11:54:03 [STEP] Scene s06 (cta, 4.6s)
+2026-11-15 11:56:31 [DEBUG] blender object3d 180 frames in 252s
+2026-11-15 11:56:31 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -framerate 30 -start_number 1 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\blender\s01\frames\f_%04d.png -vf scale=1080:1920:flags=lanczos,format=yuv420p -c:v libx264 -preset ultrafast -crf 22 -pix_fmt yuv420p -profile:v high -r 30 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\scenes\s01_e2f6eb6c39.part.mp4
+2026-11-15 11:56:32 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:56:32 [STEP] 3D scene s05 (object3d, 5.5s)
+2026-11-15 11:59:07 [DEBUG] blender object3d 166 frames in 155s
+2026-11-15 11:59:07 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -framerate 30 -start_number 1 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\blender\s05\frames\f_%04d.png -vf scale=1080:1920:flags=lanczos,format=yuv420p -c:v libx264 -preset ultrafast -crf 22 -pix_fmt yuv420p -profile:v high -r 30 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\scenes\s05_270cc529af.part.mp4
+2026-11-15 11:59:07 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:59:08 [STEP] Composing a calm music bed (36.9s)
+2026-11-15 11:59:11 [OK] Produced 6 scenes, voice, music and captions in 10m25s (video length 36.9s)
+2026-11-15 11:59:11 [STEP] Assembling scenes, transitions, grade and captions
+2026-11-15 11:59:11 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\scenes\s01_e2f6eb6c39.mp4 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\scenes\s02_40facb98d3.mp4 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\scenes\s03_8a5f6614bc.mp4 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\scenes\s04_d21bd1bfdb.mp4 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\scenes\s05_270cc529af.mp4 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\scenes\s06_b2bf75901e.mp4 -/filter_complex C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\video_master.filter.txt -map [vout] -c:v libx264 -preset veryfast -crf 26 -pix_fmt yuv420p -profile:v high -r 30 -an C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\video_master.part.mp4
+2026-11-15 11:59:29 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:59:29 [STEP] Mixing voice, music (ducked) and sound effects to broadcast loudness
+2026-11-15 11:59:29 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s01_23fdd147e4286b56.polished.wav -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s02_a8c3a48f9931f52b.polished.wav -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s03_2af408949ef9c402.polished.wav -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s04_297b0eae2b9b9a78.polished.wav -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s05_98bb283c5479363a.polished.wav -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s06_9f72c5c5cfd2ee0e.polished.wav -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\audio\sfx_whoosh.wav -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\audio\sfx_hit.wav -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\audio\sfx_click.wav -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\audio\sfx_ding.wav -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\audio\sfx_riser.wav -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\audio\sfx_pop.wav -stream_loop -1 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\audio\music_calm_36.wav -/filter_complex C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\audio_master.afilter.txt -map [mix] -ar 48000 -c:a pcm_s24le C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\audio_master.raw.wav
+2026-11-15 11:59:31 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:59:31 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\audio_master.raw.wav -af loudnorm=I=-14.0:TP=-1.5:LRA=11:print_format=json -f null -
+2026-11-15 11:59:32 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:59:32 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\audio_master.raw.wav -af loudnorm=I=-14.0:TP=-1.5:LRA=11:print_format=json -f null -
+2026-11-15 11:59:34 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\audio_master.raw.wav -af loudnorm=I=-14.0:TP=-1.5:LRA=11:measured_I=-18.78:measured_TP=-3.87:measured_LRA=1.90:measured_thresh=-28.78:offset=0.05:linear=true,alimiter=limit=0.89:level=false -ar 48000 -c:a pcm_s24le C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\audio_master.wav
+2026-11-15 11:59:37 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:59:37 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\video_master.mp4 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\audio_master.wav -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 192k -ar 48000 -shortest -movflags +faststart C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.part.mp4
+2026-11-15 11:59:38 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:59:38 [OK] Rendered C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.mp4 (36.9s) in 27.0s
+2026-11-15 11:59:38 [STEP] Quality checks on master.mp4
+2026-11-15 11:59:38 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffprobe.EXE -v error -print_format json -show_format -show_streams C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.mp4
+2026-11-15 11:59:38 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.mp4 -vf blackdetect=d=0.4:pic_th=0.97,freezedetect=n=-55dB:d=3.5 -af silencedetect=n=-45dB:d=2.0,ebur128=peak=true,astats=metadata=0:measure_overall=Peak_level -f null -
+2026-11-15 11:59:40 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -ss 1.108 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.mp4 -frames:v 1 -vf scale=320:-2 -q:v 3 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\qa\frame_00.jpg
+2026-11-15 11:59:40 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:59:40 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -ss 5.540 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.mp4 -frames:v 1 -vf scale=320:-2 -q:v 3 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\qa\frame_01.jpg
+2026-11-15 11:59:41 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:59:41 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -ss 11.080 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.mp4 -frames:v 1 -vf scale=320:-2 -q:v 3 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\qa\frame_02.jpg
+2026-11-15 11:59:41 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:59:41 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -ss 16.619 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.mp4 -frames:v 1 -vf scale=320:-2 -q:v 3 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\qa\frame_03.jpg
+2026-11-15 11:59:41 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:59:41 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -ss 22.159 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.mp4 -frames:v 1 -vf scale=320:-2 -q:v 3 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\qa\frame_04.jpg
+2026-11-15 11:59:41 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:59:41 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -ss 27.699 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.mp4 -frames:v 1 -vf scale=320:-2 -q:v 3 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\qa\frame_05.jpg
+2026-11-15 11:59:42 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:59:42 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -ss 33.239 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.mp4 -frames:v 1 -vf scale=320:-2 -q:v 3 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\qa\frame_06.jpg
+2026-11-15 11:59:42 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:59:42 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -ss 36.193 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.mp4 -frames:v 1 -vf scale=320:-2 -q:v 3 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\qa\frame_07.jpg
+2026-11-15 11:59:42 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 11:59:42 [OK] video codec: h264 yuv420p High
+2026-11-15 11:59:42 [OK] audio codec: aac 48000 Hz 2ch
+2026-11-15 11:59:42 [OK] resolution: 1080x1920 (expected 1080x1920)
+2026-11-15 11:59:42 [OK] aspect ratio: 0.5625
+2026-11-15 11:59:42 [OK] frame rate: 30.000 fps
+2026-11-15 11:59:42 [OK] duration: 36.93s (planned 36.93s)
+2026-11-15 11:59:42 [OK] A/V sync (stream length): video 36.900s / audio 36.932s
+2026-11-15 11:59:42 [OK] fast start (moov first): web-optimised MP4
+2026-11-15 11:59:42 [OK] full decode: decoded every frame
+2026-11-15 11:59:42 [OK] black frames: none
+2026-11-15 11:59:42 [OK] frozen video: none
+2026-11-15 11:59:42 [OK] dead air: none
+2026-11-15 11:59:42 [OK] loudness (EBU R128): -14.0 LUFS (target -14.0)
+2026-11-15 11:59:42 [OK] true peak / clipping: -1.4 dBTP
+2026-11-15 11:59:42 [OK] frame inspection: 8 frames checked, all have content
+2026-11-15 11:59:42 [OK] exposure: no blown-out frames
+2026-11-15 11:59:42 [OK] captions timing: 20 cues, 0 out of range/overlapping
+2026-11-15 11:59:42 [INFO] QA score 100/100 - 0 fail(s), 0 warning(s)
+2026-11-15 11:59:42 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffprobe.EXE -v error -print_format json -show_format -show_streams C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.mp4
+2026-11-15 11:59:43 [OK] YouTube Shorts: C:\Users\Dhrubo\projects\video-studio\samples\sample_project\exports\Your_Laptop_Is_a_Film_Studio_shorts.mp4
+2026-11-15 11:59:43 [STEP] Exporting YouTube 1920x1080
+2026-11-15 11:59:43 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.mp4 -filter_complex split=2[bgsrc][fg];[bgsrc]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,gblur=sigma=40,eq=brightness=-0.08:saturation=1.1[bg];[fg]scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos[fgs];[bg][fgs]overlay=(W-w)/2:(H-h)/2,setsar=1 -map 0:a? -c:a copy -c:v libx264 -preset veryfast -crf 26 -pix_fmt yuv420p -profile:v high -movflags +faststart C:\Users\Dhrubo\projects\video-studio\samples\sample_project\exports\Your_Laptop_Is_a_Film_Studio_youtube.mp4
+2026-11-15 12:00:25 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 12:00:25 [OK] YouTube: C:\Users\Dhrubo\projects\video-studio\samples\sample_project\exports\Your_Laptop_Is_a_Film_Studio_youtube.mp4
+2026-11-15 12:00:25 [STEP] Exporting Feed (square) 1080x1080
+2026-11-15 12:00:25 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.mp4 -filter_complex split=2[bgsrc][fg];[bgsrc]scale=1080:1080:force_original_aspect_ratio=increase,crop=1080:1080,gblur=sigma=40,eq=brightness=-0.08:saturation=1.1[bg];[fg]scale=1080:1080:force_original_aspect_ratio=decrease:flags=lanczos[fgs];[bg][fgs]overlay=(W-w)/2:(H-h)/2,setsar=1 -map 0:a? -c:a copy -c:v libx264 -preset veryfast -crf 26 -pix_fmt yuv420p -profile:v high -movflags +faststart C:\Users\Dhrubo\projects\video-studio\samples\sample_project\exports\Your_Laptop_Is_a_Film_Studio_square.mp4
+2026-11-15 12:00:54 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 12:00:54 [OK] Feed (square): C:\Users\Dhrubo\projects\video-studio\samples\sample_project\exports\Your_Laptop_Is_a_Film_Studio_square.mp4
+2026-11-15 12:00:54 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.EXE -hide_banner -nostdin -y -loglevel error -threads 14 -ss 4.000 -i C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.mp4 -frames:v 1 -q:v 3 C:\Users\Dhrubo\projects\video-studio\samples\sample_project\exports\Your_Laptop_Is_a_Film_Studio_thumbnail.jpg
+2026-11-15 12:00:55 [DEBUG] [ffmpeg] exit=0
+
+2026-11-15 12:00:55 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffprobe.EXE -v error -print_format json -show_format -show_streams C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s01_23fdd147e4286b56.polished.wav
+2026-11-15 12:00:55 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffprobe.EXE -v error -print_format json -show_format -show_streams C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s02_a8c3a48f9931f52b.polished.wav
+2026-11-15 12:00:55 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffprobe.EXE -v error -print_format json -show_format -show_streams C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s03_2af408949ef9c402.polished.wav
+2026-11-15 12:00:55 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffprobe.EXE -v error -print_format json -show_format -show_streams C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s04_297b0eae2b9b9a78.polished.wav
+2026-11-15 12:00:55 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffprobe.EXE -v error -print_format json -show_format -show_streams C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s05_98bb283c5479363a.polished.wav
+2026-11-15 12:00:56 [DEBUG] $ C:\Users\Dhrubo\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffprobe.EXE -v error -print_format json -show_format -show_streams C:\Users\Dhrubo\projects\video-studio\samples\sample_project\build\voice\s06_9f72c5c5cfd2ee0e.polished.wav
+2026-11-15 12:00:56 [OK] Done in 795s. Master: C:\Users\Dhrubo\projects\video-studio\samples\sample_project\output\master.mp4
+2026-11-15 12:00:56 [INFO] Exports: Your_Laptop_Is_a_Film_Studio_shorts.mp4, Your_Laptop_Is_a_Film_Studio_youtube.mp4, Your_Laptop_Is_a_Film_Studio_square.mp4, Your_Laptop_Is_a_Film_Studio_thumbnail.jpg, Your_Laptop_Is_a_Film_Studio.srt, Your_Laptop_Is_a_Film_Studio.vtt, Your_Laptop_Is_a_Film_Studio.otio
+2026-11-15 12:00:56 [INFO] Rate it so the studio learns your taste:  video-studio feedback 5 --notes "loved the 3D, slightly too fast"
