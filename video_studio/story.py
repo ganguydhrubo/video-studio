@@ -135,12 +135,14 @@ def claim_score(text: str, strength: float) -> float:
 
 
 def build(utts: list[dict], retakes: set[str], translation: list[dict], strength: dict[str, float], target: float | None,
-          brief: str = "", reel: bool = True) -> tuple[list[str], list[str]]:
+          brief: str = "", reel: bool = True, preserve_content: bool = False) -> tuple[list[str], list[str]]:
     """Returns (ordered utterance ids to keep, plain-English notes)."""
     notes: list[str] = []
     lines = [u for u in utts if u["id"] not in retakes]
     if not lines:
         return [], notes
+    if preserve_content:
+        return [u['id'] for u in lines], ['Kept the full message in its recorded order; no shorter video length was requested.']
     if not translation:  # no meaning available (old project): keep the recorded order, only fit the length
         return [u["id"] for u in lines], notes
     en = meanings(utts, translation)
@@ -258,7 +260,7 @@ def json_list(ids: list[str]) -> str:
 
 
 def accept_review(answer: dict, utts: list[dict], retakes: set[str], en: dict[str, str], strength: dict[str, float],
-                  draft: list[str], target: float | None) -> tuple[list[str] | None, list[str]]:
+                  draft: list[str], target: float | None, preserve_content: bool = False) -> tuple[list[str] | None, list[str]]:
     """Check the AI editor's cut against the rules a human editor never breaks. Returns (keep, notes); keep is None
     when the answer cannot be trusted (the rule-based draft is used instead)."""
     notes: list[str] = []
@@ -267,6 +269,10 @@ def accept_review(answer: dict, utts: list[dict], retakes: set[str], en: dict[st
     if not isinstance(raw, list):
         return None, ["AI editor gave no usable cut; kept the rule-based story"]
     keep = list(dict.fromkeys(k for k in raw if k in by_id and k not in retakes))
+    if preserve_content:
+        if set(draft)-set(keep):
+            return None, ['AI suggested removing content without a shortening request; kept your full message.']
+        keep=sorted(keep,key=lambda k:by_id[k]['start'])
     dur = lambda ids: sum(by_id[i]["end"] - by_id[i]["start"] for i in ids)  # noqa: E731
     floor = 0.5 * (target or dur(draft) or 1.0)
     if len(keep) < 2 or dur(keep) < min(floor, 0.8 * dur(draft)):
@@ -280,7 +286,7 @@ def accept_review(answer: dict, utts: list[dict], retakes: set[str], en: dict[st
         keep = [fallback] + sorted((k for k in keep if k != fallback), key=lambda k: by_id[k]["start"])
     else:
         keep = [opener] + rest
-    if target and dur(keep) > target * 1.12:
+    if target and not preserve_content and dur(keep) > target * 1.12:
         keep = fit(keep, target, en, by_id, strength, notes)
     reasons = answer.get("reasons") if isinstance(answer.get("reasons"), dict) else {}
     head = []
@@ -354,18 +360,18 @@ def forecast(utts: list[dict], keep: list[str], en: dict[str, str], strength: di
     f_en = en.get(first["id"], "")
     d = first["end"] - first["start"]
     if d > 6.0:
-        out.append({"level": "risk", "text": f"The opening line runs {d:.0f} s. Viewers decide in about 3 s - consider a shorter opening (see the choices)."})
+        out.append({"level": "note", "text": f"The first spoken line lasts {d:.0f} s. Preview it before choosing a shorter opening; keep the sentence complete."})
     if re.search(r"\d", f_en) or "?" in f_en or NEG.search(f_en):
-        out.append({"level": "good", "text": "The opening has a number, a question or a bold claim - a reason to keep watching."})
+        out.append({"level": "note", "text": "The opening contains a number, question or strong claim. Check that the rest of the video supports it."})
     else:
-        out.append({"level": "risk", "text": "The opening has no number, question or bold claim. It may not stop the scroll."})
+        out.append({"level": "note", "text": "The opening is conversational. You can keep it or compare another complete opening line."})
     early, t = [], 0.0
     for k in keep:
         if t < 12.0:
             early.append(k)
         t += by_id[k]["end"] - by_id[k]["start"]
     if not any(concrete(en.get(k, ""), by_id[k].get("text", "")) >= 0.6 for k in early):
-        out.append({"level": "risk", "text": "No concrete proof (a name, a number, an example) in the first 12 s."})
+        out.append({"level": "note", "text": "Consider whether an example near the start would make your message clearer; this is an optional editing suggestion."})
     shaky = [k for k in keep if en.get(k) and not reliable(by_id[k], en[k])]
     if shaky:
         out.append({"level": "risk", "text": f"The speech model missed words in {len(shaky)} kept line(s); captions will have gaps there. Check them in the Lines tab."})

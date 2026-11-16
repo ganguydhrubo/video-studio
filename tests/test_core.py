@@ -307,9 +307,9 @@ class LocalBrain(unittest.TestCase):
         self.assertFalse({"u0", "u6", "u4"} & {o["id"] for o in opts})       # never an intro, a sign-off or a "But ..." line
         self.assertIn("has a number", next(o for o in opts if o["id"] == "u3")["why"])
         fc = story.forecast(utts, keep, en, strength, {})
-        self.assertTrue(any(f["level"] == "risk" and "opening" in f["text"].lower() for f in fc))   # "AI is hard to explain"
+        self.assertTrue(any(f["level"] == "note" and "opening" in f["text"].lower() for f in fc))   # "AI is hard to explain"
         fc = story.forecast(utts, ["u3", "u1", "u2", "u5"], en, strength, {})
-        self.assertTrue(any(f["level"] == "good" and "opening" in f["text"].lower() for f in fc))
+        self.assertTrue(any(f["level"] == "note" and "opening" in f["text"].lower() for f in fc))
         self.assertTrue(any(f["level"] == "good" and "ends" in f["text"].lower() for f in fc))
 
     def test_paid_ai_is_never_a_silent_fallback(self):

@@ -1590,5 +1590,6 @@ $("#aiPill").style.cursor = "pointer";
 setMode("edit"); stageAspect(); route(); refreshAIPill();
 setTimeout(() => { if (!S.projects.length) api("/api/projects").then(r => { S.projects = r.projects; renderShelf(); }).catch(() => {}); }, 1500);
 </script>
+<script src="/brief-assistant.js"></script>
 </body>
 </html>

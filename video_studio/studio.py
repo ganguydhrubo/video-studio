@@ -7,6 +7,7 @@ and one project format. The page is a single file (studio_ui/index.html).
 from __future__ import annotations
 
 import json
+import hashlib
 import mimetypes
 import os
 import re
@@ -34,6 +35,47 @@ SELECTED_MEDIA: set[Path] = set()
 LOCK = threading.Lock()
 CHECK_LOCK = threading.Lock()
 CHECKS: dict[str, dict] = {}
+BRIEF_RESULTS: dict[str, dict] = {}
+BRIEF_SLOTS = threading.BoundedSemaphore(2)
+
+
+def brief_assistance(body: dict) -> dict:
+    """A bounded asynchronous AI request; never occupy an HTTP connection waiting for a model."""
+    from video_studio import briefing
+
+    brief = str(body.get("brief", ""))[:4000]
+    preferred = str(body.get("provider") or config.get("ai.provider"))
+    key = hashlib.sha256((preferred + "\0" + brief).encode()).hexdigest()
+    with CHECK_LOCK:
+        known = BRIEF_RESULTS.get(key)
+        # A failed answer is retried after a minute, or at once when asked; a good answer is reused.
+        if known and (known["checking"] or not (known.get("failed") and (body.get("fresh") or time.time() - known.get("at", 0) > 60))):
+            return dict(known)
+        local = briefing.local_intent(brief)
+        if not brief.strip() or preferred == "none":
+            return {**local, "checking": False, "request_id": key}
+        if not BRIEF_SLOTS.acquire(blocking=False):
+            return {**local, "checking": True, "waiting": True, "request_id": key}
+        # Retain only recent results, without deleting in-flight work.
+        for old in list(BRIEF_RESULTS):
+            if len(BRIEF_RESULTS) < 32:
+                break
+            if not BRIEF_RESULTS[old]["checking"]:
+                del BRIEF_RESULTS[old]
+        BRIEF_RESULTS[key] = {**local, "checking": True, "request_id": key}
+
+    def worker():
+        try:
+            result = briefing.interpret(brief, preferred)
+        except Exception:
+            result = {**local, "warnings": ["The AI assistant could not respond. Your original instructions are kept."]}
+        finally:
+            BRIEF_SLOTS.release()
+        with CHECK_LOCK:
+            BRIEF_RESULTS[key] = {**result, "checking": False, "request_id": key, "at": time.time()}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return {**local, "checking": True, "request_id": key}
 
 
 def background_check(key, check, fresh=False):
@@ -153,6 +195,8 @@ def project_summary(root: Path) -> dict | None:
             "thumb": next((e for e in exports if e.endswith("_thumbnail.jpg")), ""),
             "lines": _review_lines(root, plan),
             "story": plan.get("story") or [], "assist": plan.get("assist") or {},
+            "intent": plan.get("intent") or {}, "coverage": plan.get("coverage") or {},
+            "learned_advice": plan.get("learned_advice") or {"available": False},
             "hook_text": plan.get("hook_text", ""), "mode": plan.get("mode", "speech"),
             "understood": _understood(root),
             "effects": ((read_json(root / "build" / "style_plan.json", {}) or {}).get("reasons") or [])[:20],
@@ -408,8 +452,17 @@ class Handler(BaseHTTPRequestHandler):
             self._file(resource_path("assets", "app-icon.ico"))
         elif url.path == "/font/display.ttf":
             self._file(resource_path("assets", "fonts", "InstrumentSerif-Italic.ttf"))
+        elif url.path == "/brief-assistant.js":
+            self._file(resource_path("studio_ui", "brief-assistant.js"))
         elif url.path == "/api/health":
             self._json({"app": "VideoStudio", "version": __version__, "pid": os.getpid()})
+        elif url.path == "/api/capabilities":
+            trained = read_json(app_data_dir() / "learned_keep.json", {}) or {}
+            self._json({"brief_assistant": True, "speech_model": "pretrained", "audience_prediction": False,
+                        "adaptation": "saved preferences and ratings", "learned_keep": {
+                            "trained": bool(trained.get("ok")), "validated_enabled": bool(trained.get("enabled")),
+                            "role": "advisory_only", "recordings": trained.get("recordings", 0),
+                            "held_out_metrics": trained.get("model", {})}})
         elif url.path == "/api/projects":
             self._json({"projects": list_projects(), "workspace": str(workspace())})
         elif url.path == "/api/project":
@@ -494,6 +547,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "Could not save a local working copy. " + str(exc)}, 507)
             return self._json(result)
         body = self._body()
+        if url.path == "/api/brief/interpret":
+            return self._json(brief_assistance(body))
         if url.path == "/api/pick-files":
             return self._json(pick_local_files(), 410)
         if url.path == "/api/local-file":

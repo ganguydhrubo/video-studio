@@ -68,7 +68,7 @@ class Provider:
         health = (read_json(_health_file(), {}) or {}).get(self.key)
         if st.signed_in and health:  # kept until a later call succeeds
             st.problem = "last call failed: " + health["error"][:160]
-            if "antigravity" in health["error"].lower() or "ineligible" in health["error"].lower():
+            if _account_refused(health["error"]) or "not eligible" in health["error"].lower():
                 st.hint = "Google no longer serves this personal login in Gemini CLI. Free option: create a key at aistudio.google.com and set GEMINI_API_KEY."
         if not st.signed_in and not st.hint:
             st.hint = f"video-studio ai login {self.key}"
@@ -198,6 +198,8 @@ class Gemini(Provider):
             cmd += ["-m", self.model()]
         res = run(cmd, input_text=text, timeout=timeout, cwd=workdir, check=False)
         raw = res.stdout or ""
+        if res.returncode != 0 and _account_refused(raw + (res.stderr or "")):
+            raise ToolError(ACCOUNT_REFUSED)
         try:
             start = raw.index("{")
             data = json.loads(raw[start:])
@@ -315,6 +317,22 @@ def _record_health(key: str, error: str | None) -> None:
 
 
 PAID = {"claude", "codex"}
+ACCOUNT_REFUSED = ("Google says this sign-in is not eligible to use Gemini CLI here (an account rule, not a Takebloom fault). "
+                   "Pick another AI in AI editor, or set a free GEMINI_API_KEY from aistudio.google.com.")
+HARD_FAILURE_HOURS = 6
+
+
+def _account_refused(text: str) -> bool:
+    low = text.lower()
+    return "ineligible" in low or "antigravity.google" in low
+
+
+def _hard_failure(key: str) -> bool:
+    """The provider's last call failed for an account reason in the last few hours (not a timeout or a bad answer)."""
+    health = (read_json(_health_file(), {}) or {}).get(key) or {}
+    error = str(health.get("error", "")).lower()
+    recent = time.time() - float(health.get("at", 0)) < HARD_FAILURE_HOURS * 3600
+    return recent and any(k in error for k in ("not eligible", "ineligible", "antigravity", "not logged", "unauthor"))
 _PROVIDERS: list[Provider] | None = None
 
 
@@ -356,7 +374,7 @@ class Director:
             self._status_cache[p.key] = p.status()
         return self._status_cache[p.key]
 
-    def chain(self) -> list[Provider]:
+    def _candidates(self) -> list[Provider]:
         if not self.enabled:
             return []
         order: list[str] = []
@@ -366,19 +384,26 @@ class Director:
             order += [k for k in config.get("ai.fallback") if k not in order]
         if not config.get("ai.paid_fallback"):  # free first: a paid plan is spent only when the user picked it
             order = [k for k in order if k not in PAID or k == self.preferred]
-        return [get_provider(k) for k in order if self._status(get_provider(k)).signed_in]
+        if len(order) > 1:  # an account that was just refused is tried last, so a working one answers first
+            order = [k for k in order if not _hard_failure(k)] + [k for k in order if _hard_failure(k)]
+        return [get_provider(k) for k in order]
+
+    def chain(self) -> list[Provider]:
+        return [p for p in self._candidates() if self._status(p).signed_in]
 
     def available(self) -> bool:
-        return bool(self.chain())
+        return any(self._status(p).signed_in for p in self._candidates())
 
     def ask_json(self, purpose: str, prompt: str, *, images: list[Path] | None = None, use_cache: bool = True) -> tuple[dict | list, str]:
         """Ask for a JSON answer. Returns (data, provider_key). Raises ToolError if nobody can answer."""
-        chain = self.chain()
+        chain = self._candidates()
         if not chain:
             raise ToolError("No signed-in AI CLI available.", "Run `video-studio ai status`, then `video-studio ai login <provider>`.")
         img_key = [str(p.stat().st_size) + p.name for p in images or []]
         errors = []
         for provider in chain:
+            if not self._status(provider).signed_in:
+                continue
             key = sha([provider.key, provider.model(), prompt, img_key], 24)
             cached = cache_dir("ai") / f"{key}.json"
             if use_cache and cached.exists():
@@ -418,7 +443,7 @@ class Director:
 def _short_error(text: str) -> str:
     for line in text.splitlines():
         low = line.lower()
-        if any(k in low for k in ("ineligible", "antigravity", "quota", "unauthor", "rate limit", "not logged", "error:")):
+        if any(k in low for k in ("not eligible", "ineligible", "antigravity", "quota", "unauthor", "rate limit", "not logged", "error:")):
             return line.strip()[:240]
     return text.strip().splitlines()[0][:240] if text.strip() else "unknown error"
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "video-studio"
-version = "1.6.0"
+version = "1.7.0"
 description = "Local-first AI video production studio for Windows: edit your footage or turn a script into a finished video."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -22,4 +22,4 @@ video-studio = "video_studio.cli:main"
 include = ["video_studio*"]
 
 [tool.setuptools.package-data]
-video_studio = ["blender/*.py", "helpers/*.py", "studio_ui/*.html"]
+video_studio = ["blender/*.py", "helpers/*.py", "studio_ui/*.html", "studio_ui/*.js", "assets/*"]

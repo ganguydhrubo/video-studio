@@ -166,6 +166,8 @@ def build_plan(pieces: list[dict], words: list[dict], total: float, director: di
     # hook: giant words behind the speaker, flash + hit on frame 1
     hook = (director.get("hook_text") or director.get("title") or "").strip()
     first_end = min(2.4, (cuts[0] if cuts else total) - 0.05, total * 0.4)
+    if director.get('hook_seconds'):
+        first_end=min(float(director['hook_seconds']),total-.05)
     slams, hits, trans = [], [], [{"t": 0.0, "kind": "flash"}]
     if hook:
         slams.append({"t0": 0.06, "t1": max(1.2, first_end), "text": " ".join(hook.split()[:4]), "style": "accent"})

@@ -15,7 +15,7 @@ DEFAULTS: dict[str, Any] = {
     "ai.paid_fallback": False,        # paid plans (claude, codex) are used only when you pick one, never as a silent fallback
     "ai.models": {},                  # provider -> model name, empty = CLI default
     "ai.timeout": 240,
-    "ai.max_calls_per_project": 4,
+    "ai.max_calls_per_project": 12,
     # tool path overrides (empty = auto-detect)
     "tools.ffmpeg": "",
     "tools.ffprobe": "",

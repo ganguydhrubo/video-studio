@@ -65,7 +65,11 @@ def run_cli(args) -> int:
     data = proj.data
     data["footage"] = [str(f) for f in footage]
     data["brief"] = brief
-    data["edit_options"] = {"target": args.target or _guess_target(brief), "use_ai": not args.no_ai and getattr(args, "ai", None) != "none" and config.get("ai.provider") != "none",
+    from video_studio.briefing import local_intent
+    inferred=local_intent(brief)
+    data["edit_options"] = {"target": args.target or inferred['target_seconds'],
+                            "target_source":"explicit" if args.target is not None else "brief",
+                            "hook_seconds":inferred['hook_seconds'], "use_ai": not args.no_ai and getattr(args, "ai", None) != "none" and config.get("ai.provider") != "none",
                             "keep_silences": args.keep_silences, "reframe": not args.no_reframe,
                             "enhance": not args.no_enhance, "language": args.language, "whisper_model": args.whisper_model,
                             "caption_script": args.caption_script,
@@ -91,11 +95,8 @@ def _guess_aspect(brief: str) -> str | None:
 
 
 def _guess_target(brief: str) -> float | None:
-    m = re.search(r"(\d+(?:\.\d+)?)\s*(s|sec|secs|seconds|second|min|mins|minute|minutes)\b", brief.lower())
-    if not m:
-        return None
-    val = float(m.group(1))
-    return val * 60 if m.group(2).startswith("m") else val
+    from video_studio.briefing import local_intent
+    return local_intent(brief)['target_seconds']
 
 
 def _guess_language(brief: str) -> str:
@@ -475,6 +476,30 @@ def plan(proj: Project) -> dict:
     brief = data.get("brief", "")
     target = opts.get("target")
     s = proj.settings
+    from video_studio import briefing
+    intent = proj.read('brief_intent.json')
+    if not intent or intent.get('original_brief') != brief:
+        console.step('Understanding your editing instructions')
+        intent=briefing.interpret(brief,s.get('ai_provider'),bool(opts.get('use_ai')),proj.build/'ai_usage.json')
+        proj.write('brief_intent.json',intent)
+    hook_seconds=opts.get('hook_seconds') or intent.get('hook_seconds')
+    if target and opts.get('target_source') != 'explicit' and intent.get('target_seconds') is None and hook_seconds == target:
+        target=None
+        opts.update(target=None,target_source='corrected-legacy-hook')
+        data['edit_options']=opts
+        proj.save(data)
+        intent['warnings'].append('A previous version mistook the hook duration for the whole video duration. That inferred limit was removed.')
+        proj.write('brief_intent.json', intent)
+    # Use corrected wording for creative decisions, while retaining the creator's original verbatim.
+    brief = intent.get('normalized_brief') or brief
+    speech_seconds=sum(w['end']-w['start'] for w in words)
+    preserve_content=bool(intent.get('preserve_content')) or bool(target and target >= speech_seconds * .95)
+    if opts.get('target_source') == 'explicit' and target and target < speech_seconds * .95:
+        preserve_content=False
+    if preserve_content:
+        # A repeated prefix alone is not proof that a complete statement is a bad take.
+        retakes={k for k in retakes if any(u['id']==k and any(v['start']>u['start'] and
+                  SequenceMatcher(None,_norm(u['text']),_norm(v['text'])).ratio()>=.92 for v in utts) for u in utts)}
     br = _brain(proj, words, utts)
     from video_studio import story
 
@@ -482,13 +507,14 @@ def plan(proj: Project) -> dict:
     translation = story.english(tr)
     w_, h_ = proj.size
     reel = h_ > w_
-    draft, story_notes = story.build(utts, set(retakes), translation, br["strength"], target, brief, reel=reel)
+    draft, story_notes = story.build(utts, set(retakes), translation, br["strength"], target, brief, reel=reel,
+                                     preserve_content=preserve_content)
     en = story.meanings(utts, translation)
-    aim = target or (55.0 if reel and sum(u["end"] - u["start"] for u in utts if u["id"] not in retakes) > 62 else None)
+    aim = target or (55.0 if not preserve_content and reel and sum(u["end"] - u["start"] for u in utts if u["id"] not in retakes) > 62 else None)
     # 2. an AI senior editor (free provider by default) reviews the draft; its cut is accepted only if it passes the
     #    checks in story.accept_review, otherwise the draft stands
     ai_plan = None
-    sig = sha([[u["id"], u["text"]] for u in utts], 16)
+    sig = sha([[[u["id"], u["text"]] for u in utts], brief, target, preserve_content, s.get('ai_provider')], 16)
     saved = proj.read("ai_review.json") or {}
     if opts.get("use_ai") and saved.get("sig") == sig:
         ai_plan = saved["answer"]  # a re-edit (your review, another opening, shorter...) reuses the review: instant, and the story stays put
@@ -516,7 +542,8 @@ def plan(proj: Project) -> dict:
                 console.warn(f"AI editor unavailable ({str(exc).splitlines()[0][:120]}); using the rule-based story.")
     keep = None
     if ai_plan:
-        keep, review_notes = story.accept_review(ai_plan, utts, set(retakes), en, br["strength"], draft, aim)
+        keep, review_notes = story.accept_review(ai_plan, utts, set(retakes), en, br["strength"], draft, aim,
+                                                 preserve_content=preserve_content)
         if keep:
             ai_plan["story"] = [f"AI editor ({ai_plan['planner'][3:]}) reviewed the rule-based draft", *review_notes]
             ai_plan["visuals"] = story.visuals(ai_plan, keep)
@@ -574,6 +601,19 @@ def plan(proj: Project) -> dict:
            "utterances": [{k: u[k] for k in ("id", "start", "end", "text")} for u in utts],
            "scenes": [{"purpose": "hook" if i == 0 else "body", "visual": {"type": "footage"}} for i, _ in enumerate(keep)],
            "category": planner._category(" ".join(by_id[k]["text"] for k in keep))}
+    out['hook_seconds']=hook_seconds
+    out['intent']=intent
+    from video_studio import learn
+    probabilities = learn.keep_probabilities(words)
+    out['learned_advice'] = {'available': probabilities is not None, 'role': 'advisory_only', 'lines': []}
+    if probabilities is not None:
+        for u in utts:
+            values = [prob for w, prob in zip(words, probabilities) if u['start'] <= w['start'] and w['end'] <= u['end']]
+            if values:
+                out['learned_advice']['lines'].append({'id': u['id'], 'keep_probability': round(sum(values) / len(values), 3)})
+    out['coverage']={'source_speech_seconds':round(sum(u['end']-u['start'] for u in utts),2),
+                     'kept_speech_seconds':round(sum(by_id[k]['end']-by_id[k]['start'] for k in keep),2),
+                     'kept_lines':len(keep),'total_lines':len(utts),'preserve_content':preserve_content}
     proj.write("edit_plan.json", out)
     proj.write("creative.json", creative)
     _write_edit_storyboard(proj, out, creative)
@@ -690,7 +730,7 @@ def _pieces(proj: Project, p: dict, words: list[dict]) -> list[dict]:
             continue
         cur = None
         for i, w in enumerate(uw):
-            if _is_filler(uw, i):
+            if not p.get('coverage', {}).get('preserve_content') and _is_filler(uw, i):
                 continue
             if cur and w["start"] - cur["words"][-1]["end"] <= pace_of.get(k, pace):
                 cur["words"].append(w)
@@ -718,6 +758,12 @@ def _pieces(proj: Project, p: dict, words: list[dict]) -> list[dict]:
             merged[-1]["words"] += pc["words"]
         else:
             merged.append(pc)
+    # Adjacent lines can share padded boundaries: never play the same source instant twice.
+    for left, right in zip(merged, merged[1:]):
+        if left['words'][-1]['end'] <= right['words'][0]['start'] and left['end'] > right['start']:
+            boundary = (left['words'][-1]['end'] + right['words'][0]['start']) / 2
+            left['end'] = min(left['end'], boundary)
+            right['start'] = max(right['start'], boundary)
     return [pc for pc in merged if pc["end"] - pc["start"] >= 0.25]
 
 
