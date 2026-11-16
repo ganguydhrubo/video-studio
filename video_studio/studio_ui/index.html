@@ -425,6 +425,15 @@ textarea,input[type=text],input[type=number],input[type=search],select,.seg,.fil
 @keyframes ttl{0%{opacity:0;letter-spacing:.62em;filter:blur(8px)}45%{opacity:1;filter:none}100%{opacity:1;letter-spacing:.3em}}
 @media(prefers-reduced-motion:reduce){#world{display:none}#intro{display:none}}
 
+
+/* A working preview, with a clear three-step create flow. */
+.hero{min-height:0;padding:24px 0 25px}.hero h1{font-size:clamp(28px,2.8vw,42px);letter-spacing:.04em;line-height:1.2}.hero .sub{max-width:70ch;font-size:14px;margin-bottom:0}.hero h1 br{display:none}
+.create{grid-template-columns:minmax(0,1.25fr) minmax(310px,.75fr);gap:28px;align-items:start}.modes{margin-bottom:14px}.mode b{font-family:var(--display);font-size:14px}.mode span{font-size:12px;line-height:1.6}.drop{padding:25px 20px}.drop strong{font-family:var(--display);font-weight:600;letter-spacing:0;text-transform:none;font-size:18px}.drop .up{width:42px;height:42px;margin-bottom:12px}.local-note{font-size:11px;line-height:1.6}.lbl{letter-spacing:.09em!important}.file-preview{all:unset;flex:1;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:550}.file .err{font-size:11px;max-width:260px;line-height:1.4}
+.source-preview{all:unset;position:sticky;top:82px;display:block;background:rgba(255,255,255,.94);border:1px solid #d4dfce;border-radius:20px;overflow:hidden;box-shadow:0 15px 50px #4262390a;pointer-events:auto;margin-top:0;height:auto;min-width:0}.preview-top{display:flex;align-items:center;justify-content:space-between;padding:20px 22px;font-size:10px;letter-spacing:.15em;color:#6b8064;font-weight:600;border-bottom:1px solid #e7ecdf}.preview-local{font-size:10px;letter-spacing:0;color:#4d7955;font-weight:400}.source-frame{height:360px;background:radial-gradient(ellipse at 50% 35%,#e4edd655,transparent 65%),#f6f8f0;display:grid;place-items:center;overflow:hidden;position:relative}.source-frame video{width:100%;height:100%;max-height:360px;object-fit:contain;background:#14221b}.source-frame>div{text-align:center;padding:25px}.source-frame img{width:68px;height:68px;object-fit:contain;margin-bottom:14px}.source-frame h3{font-family:Georgia,serif;font-size:27px;font-weight:400;line-height:1.3;color:#3d6349;margin:0 0 14px;letter-spacing:-.02em}.source-frame p{font-size:12px;line-height:1.7;color:#7c8f70}.preview-info{display:flex;flex-direction:column;gap:5px;padding:18px 22px;border-top:1px solid #e2e9da}.preview-info b{font-size:13px;color:#3f6144;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.preview-info span{font-size:11px;color:#839377}.preview-output{display:grid;grid-template-columns:1fr auto;gap:6px;padding:15px 22px;background:#f8faf5;border-top:1px solid #e2e9da;font-size:11px;color:#80946f}.preview-output b{font-size:11px;font-weight:550;color:#4d704c}.preview-output small{grid-column:1/-1;text-align:right;font-size:10px}.preview-note{padding:0 22px 18px;font-size:10px;line-height:1.6;color:#839679;background:#f8faf5;margin:0}
+@media(max-width:1100px){.create{grid-template-columns:minmax(0,1fr) 310px;gap:18px}.source-frame{height:280px}.source-frame video{max-height:280px}}
+@media(max-width:920px){.create{grid-template-columns:1fr}.source-preview{position:relative;top:0;display:block;max-width:none}.source-frame{height:300px}.hero{padding-top:15px}.modes{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.modes{grid-template-columns:1fr}.top .pill{max-width:190px;overflow:hidden;text-overflow:ellipsis}.source-frame{height:250px}}
+
 </style>
 </head>
 <body data-scene="create">
@@ -475,18 +484,18 @@ textarea,input[type=text],input[type=number],input[type=search],select,.seg,.fil
     <div id="editInputs">
       <div class="drop" id="drop" tabindex="0" role="button" aria-label="Add video files">
         <div class="up"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg></div>
-        <strong>Choose videos from this computer</strong>
-        <span>Browse local files, or drop clips here · MP4, MOV, MKV</span>
+        <strong>1 · Choose your clips</strong>
+        <span>Browse this PC, or drop videos here · No fixed file-size limit</span>
         <input type="file" id="fileInput" accept="video/*" multiple hidden>
       </div>
-      <div class="files" id="files"></div><p class="local-note">Files stay on this PC. Browsing reads the selected originals; drag-and-drop makes a local working copy. Optional AI review sends transcript text to your chosen provider.</p>
+      <div class="files" id="files"></div><p class="local-note">Your clips stay on this PC. Native selection reads them directly; drag-and-drop makes a local copy. Optional AI uses transcript text.</p>
     </div>
     <div id="scriptInputs" hidden>
       <label class="lbl" for="script" style="margin-top:0">Script</label>
       <textarea id="script" placeholder="# Title&#10;&#10;Write the narration, one idea per paragraph.&#10;Optional: [3D: rocket]  [STAT: 70% | of creators]  [IMAGE: C:\path\photo.jpg]"></textarea>
     </div>
 
-    <label class="lbl" for="brief">Describe the result</label>
+    <label class="lbl" for="brief">2 · Describe your edit</label>
     <textarea id="brief" placeholder="e.g. A punchy 45-second Instagram reel. Remove mistakes and long pauses, bold captions, energetic music."></textarea>
     <div class="chips" id="chips"></div>
 
@@ -530,8 +539,12 @@ textarea,input[type=text],input[type=number],input[type=search],select,.seg,.fil
   </div>
   </div>
 
-  <aside class="stage" id="stage" aria-hidden="true">
-    <div class="finder" id="frame"><i></i><i></i><i></i><i></i><span class="cross"></span><span class="rec" id="stageTitle">Vertical reel</span><span class="spec" id="stageSpec">9:16 · 1080 × 1920</span></div>
+  <aside class="stage source-preview" id="stage" aria-label="Source video preview">
+    <div class="preview-top"><span>YOUR FOOTAGE</span><span class="preview-local">● Local on this PC</span></div>
+    <div id="frame" class="source-frame"><div id="previewEmpty"><img src="/brand-logo.png" alt=""><h3>A little possibility.<br>A great story.</h3><p>Choose a clip to see it here.<br>Your original stays untouched.</p></div><video id="sourcePreview" controls playsinline preload="metadata" hidden></video></div>
+    <div class="preview-info"><b id="previewName">Your first frame starts here</b><span id="previewDuration">Select a video from this computer</span></div>
+    <div class="preview-output"><span>Export format</span><b id="stageTitle">Vertical reel</b><small id="stageSpec">9:16 · 1080 × 1920</small></div>
+    <p class="preview-note">This shows your source clip. Your finished edit appears in the project when it is ready.</p>
   </aside>
   </div>
 </section>
@@ -784,7 +797,7 @@ const ASPECT_SPEC = {"9:16":"9:16 · 1080 × 1920","16:9":"16:9 · 1920 × 1080"
 function stageAspect() {
   const [title, w, ar] = ASPECT_STAGE[S.aspect];
   $("#stageTitle").textContent = title; $("#stageSpec").textContent = ASPECT_SPEC[S.aspect];
-  $("#frame").style.width = Math.round(w * 1.2) + "px"; $("#frame").style.aspectRatio = ar;
+  $("#frame").dataset.outputAspect = ar;
 }
 $("#aspect").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
@@ -799,7 +812,7 @@ async function chooseLocalFiles() {
     if (response.error) throw new Error(response.error);
     for (const file of response.files || []) if (!S.files.some(f => f.path === file.path)) S.files.push({...file,pct:100});
     renderFiles();
-  } catch(e) { toast("Native file selection unavailable. Choose files in the browser instead."); $("#fileInput").click(); }
+  } catch(e) { if(/earlier app session/.test(e.message)) { toast(e.message); return; } toast("Native file selection unavailable. Choose files in the browser instead."); $("#fileInput").click(); }
 }
 drop.onclick = chooseLocalFiles;
 drop.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); chooseLocalFiles(); } };
@@ -811,7 +824,7 @@ function fmtSize(n) { return n > 1e9 ? (n/1e9).toFixed(1) + " GB" : (n/1e6).toFi
 function addFiles(list) {
   for (const f of list) {
     if (!f.type.startsWith("video/") && !/\.(mp4|mov|mkv|webm|m4v|avi)$/i.test(f.name)) { toast(f.name + " is not a video"); continue; }
-    const item = { name: f.name, size: f.size, path: null, pct: 0 };
+    const item = { name: f.name, size: f.size, path: null, pct: 0, preview: URL.createObjectURL(f) };
     S.files.push(item); renderFiles(); upload(f, item);
   }
 }
@@ -819,17 +832,36 @@ function upload(f, item) {
   const xhr = new XMLHttpRequest();
   xhr.open("POST", "/api/upload"); xhr.setRequestHeader("X-Studio-Token", TOKEN); xhr.setRequestHeader("X-File-Name", encodeURIComponent(f.name));
   xhr.upload.onprogress = e => { item.pct = e.loaded / e.total * 100; renderFiles(); };
-  xhr.onload = () => { try { item.path = JSON.parse(xhr.responseText).path; item.pct = 100; } catch { item.err = true; } renderFiles(); };
-  xhr.onerror = () => { item.err = true; renderFiles(); };
+  xhr.onload = () => { try {
+    const data=JSON.parse(xhr.responseText);
+    if(xhr.status < 200 || xhr.status >= 300 || !data.path) throw new Error(data.error || "Local copy failed");
+    item.path=data.path; item.pct=100;
+  } catch(e) { item.err=true; item.error=xhr.status===403 ? "App updated. Reopen Takebloom and add the file again." : e.message; } renderFiles(); };
+  xhr.onerror = () => { item.err = true; item.error="The local connection stopped. Reopen Takebloom, then choose the file directly."; renderFiles(); };
   xhr.send(f);
 }
 function renderFiles() {
-  $("#files").innerHTML = S.files.map((f, i) => `<div class="file"><span class="name">${esc(f.name)}</span><span class="hint">${fmtSize(f.size)}</span>
-    ${f.err ? '<span class="err">Could not add file</span>' : f.path ? '<span class="hint">Ready on this PC</span>' : `<span class="bar" title="Copying locally"><i style="width:${f.pct}%"></i></span>`}
+  $("#files").innerHTML = S.files.map((f, i) => `<div class="file"><button class="name file-preview" data-preview="${i}" title="Preview this clip">${esc(f.name)}</button><span class="hint">${fmtSize(f.size)}</span>
+    ${f.err ? `<span class="err" title="${esc(f.error || "Could not add file")}">${esc(f.error || "Could not add file")}</span>` : f.path ? '<span class="hint">Ready on this PC</span>' : `<span class="bar" title="Copying locally"><i style="width:${f.pct}%"></i></span>`}
     <button class="x" aria-label="Remove ${esc(f.name)}" data-i="${i}">✕</button></div>`).join("");
-  $("#files").querySelectorAll(".x").forEach(b => b.onclick = () => { S.files.splice(+b.dataset.i, 1); renderFiles(); });
+  $("#files").querySelectorAll(".x").forEach(b => b.onclick = () => { const old=S.files.splice(+b.dataset.i,1)[0]; if(old.preview) URL.revokeObjectURL(old.preview); renderFiles(); });
+  $("#files").querySelectorAll("[data-preview]").forEach(b => b.onclick=()=>updateSourcePreview(+b.dataset.preview));
+  updateSourcePreview();
 }
 
+function updateSourcePreview(index = S.previewIndex || 0) {
+  const file=S.files[index] || S.files[0]; S.previewIndex=file ? S.files.indexOf(file) : 0;
+  const video=$("#sourcePreview"), source=file && (file.preview || (file.path ? media(file.path) : null));
+  $("#previewEmpty").hidden=!!source; video.hidden=!source;
+  if(!source) { video.removeAttribute("src"); video.dataset.source=""; video.load(); $("#previewName").textContent="Your first frame starts here"; $("#previewDuration").textContent="Select a video from this computer"; return; }
+  $("#previewName").textContent=file.name;
+  if(video.dataset.source !== source) {
+    video.dataset.source=source; video.src=source;
+    $("#previewDuration").textContent="Loading source preview…";
+    video.onloadedmetadata=()=>$("#previewDuration").textContent=fmtTime(Math.round(video.duration))+" · "+video.videoWidth+" × "+video.videoHeight+" · Original clip";
+    video.onerror=()=>$("#previewDuration").textContent="Preview unavailable for this codec. The clip can still be edited.";
+  }
+}
 /* submit */
 async function create() {
   $("#formErr").textContent = "";
@@ -840,6 +872,7 @@ async function create() {
   const body = { mode: S.mode, name: $("#name").value, brief: $("#brief").value, options };
   if (S.mode === "edit") {
     if (!S.files.length) return $("#formErr").textContent = "Add at least one video clip.";
+    if (!S.files.some(f => f.path) && S.files.every(f => f.err)) return $("#formErr").textContent = "No video is ready. Reopen Takebloom and choose the original file directly.";
     if (S.files.some(f => !f.path && !f.err)) return $("#formErr").textContent = "Preparing a local working copy — one moment.";
     body.files = S.files.filter(f => f.path).map(f => f.path);
   } else {

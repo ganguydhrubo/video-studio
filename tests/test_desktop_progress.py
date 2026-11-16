@@ -33,7 +33,7 @@ class DesktopProgress(unittest.TestCase):
             result=Mock(returncode=0,stdout=json.dumps([str(video)]))
             with patch.object(studio.subprocess,'run',return_value=result):
                 picked=studio.pick_local_files()
-            self.assertEqual(picked['files'][0]['path'],str(video))
+            self.assertEqual(Path(picked['files'][0]['path']),video.resolve())
             self.assertEqual(picked['files'][0]['size'],4)
 
     def test_app_window_uses_installed_edge(self):

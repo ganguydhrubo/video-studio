@@ -11,6 +11,7 @@ import mimetypes
 import os
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 import threading
@@ -29,6 +30,7 @@ from video_studio.util import FROZEN, app_data_dir, console, kill_tree, read_jso
 
 TOKEN = secrets.token_urlsafe(24)
 JOBS: dict[str, dict] = {}
+SELECTED_MEDIA: set[Path] = set()
 LOCK = threading.Lock()
 CHECK_LOCK = threading.Lock()
 CHECKS: dict[str, dict] = {}
@@ -323,10 +325,38 @@ def _safe_path(raw: str) -> Path | None:
         p = Path(unquote(raw)).resolve()
     except (OSError, ValueError):
         return None
+    with LOCK:
+        if p in SELECTED_MEDIA and p.is_file():
+            return p
     allowed = [workspace().resolve()] + [Path(j.root).resolve() for j in JOBS.values()]
     if any(str(p).lower().startswith(str(a).lower() + os.sep) for a in allowed) and p.is_file():
         return p
     return None
+
+
+def copy_local_video(stream, size: int, folder: Path, name: str) -> dict:
+    """Stream a browser-selected file to disk; memory use stays at 1 MiB."""
+    if size <= 0:
+        raise ValueError("The selected video is empty. Choose the original file again.")
+    folder.mkdir(parents=True, exist_ok=True)
+    if size > shutil.disk_usage(folder).free:
+        raise OSError("There is not enough free disk space for a local working copy. Choose the file directly instead.")
+    dest = folder / f"{uuid.uuid4().hex}_{name}"
+    partial = dest.with_name(dest.name + '.part')
+    try:
+        with partial.open('xb') as target:
+            left = size
+            while left:
+                chunk = stream.read(min(1 << 20, left))
+                if not chunk:
+                    raise ValueError("The local copy was interrupted. Reopen Takebloom and choose the file directly.")
+                target.write(chunk)
+                left -= len(chunk)
+        partial.replace(dest)
+    except Exception:
+        partial.unlink(missing_ok=True)
+        raise
+    return {"path": str(dest), "name": name, "size": size}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -449,22 +479,18 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         if not self._authorised():
-            return self._json({"error": "forbidden"}, 403)
+            return self._json({"error": "This page is from an earlier app session. Reopen Takebloom, then try again."}, 403)
         url = urlparse(self.path)
         if url.path == "/api/upload":
             name = re.sub(r"[^\w.\- ]", "_", unquote(self.headers.get("X-File-Name", "clip.mp4")))[:120]
             folder = workspace() / "_uploads"
-            folder.mkdir(exist_ok=True)
-            dest = folder / f"{int(time.time())}_{name}"
-            left = int(self.headers.get("Content-Length") or 0)
-            with dest.open("wb") as fh:
-                while left > 0:
-                    chunk = self.rfile.read(min(1 << 20, left))
-                    if not chunk:
-                        break
-                    fh.write(chunk)
-                    left -= len(chunk)
-            return self._json({"path": str(dest), "name": name, "size": dest.stat().st_size})
+            try:
+                result = copy_local_video(self.rfile, int(self.headers.get("Content-Length") or 0), folder, name)
+            except ValueError as exc:
+                return self._json({"error": str(exc)}, 400)
+            except OSError as exc:
+                return self._json({"error": "Could not save a local working copy. " + str(exc)}, 507)
+            return self._json(result)
         body = self._body()
         if url.path == "/api/pick-files":
             return self._json(pick_local_files())
@@ -609,8 +635,10 @@ $dialog.Dispose()'''
         paths = json.loads(result.stdout.strip() or "[]")
         if isinstance(paths, str):
             paths = [paths]
-        return {"files": [{"path": str(Path(p)), "name": Path(p).name, "size": Path(p).stat().st_size}
-                          for p in paths if Path(p).is_file()]}
+        files = [Path(p).resolve() for p in paths if Path(p).is_file()]
+        with LOCK:
+            SELECTED_MEDIA.update(files)
+        return {"files": [{"path": str(p), "name": p.name, "size": p.stat().st_size} for p in files]}
     except (OSError, ValueError, subprocess.TimeoutExpired):
         return {"error": "File selection did not complete."}
 
