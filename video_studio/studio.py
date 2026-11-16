@@ -101,6 +101,9 @@ STAGE_WORDS = {
     "QA score": "validate", "Exporting": "export", "Reading the script": "analyze", "Plan ready": "analyze",
     "Drawing storyboard": "storyboard", "Voiceover": "produce", "Scene ": "produce", "3D scene": "produce",
     "Composing": "produce", "Assembling": "render", "Watching the footage": "sense",
+    # photos, restyle, cut-out and AI clip jobs
+    "Animating": "produce", "Joining pictures": "render", "Music:": "render", "Restyling": "produce", "Steadying": "produce",
+    "Cutting out": "produce", "Generating": "produce",
 }
 
 
@@ -474,6 +477,16 @@ class Handler(BaseHTTPRequestHandler):
             self._json(ai_status(q.get("fresh", ["0"])[0] == "1"))
         elif url.path == "/api/system":
             self._json(system_report(q.get("fresh", ["0"])[0] == "1"))
+        elif url.path == "/api/machine":
+            self._json(machine_report(q.get("fresh", ["0"])[0] == "1"))
+        elif url.path == "/api/machine/check":
+            self._json(machine_check(q.get("task", ["edit"])[0], q.get("seconds", [""])[0], q.get("short_side", [""])[0]))
+        elif url.path == "/api/library":
+            from video_studio import library
+
+            self._json(library.catalog())
+        elif url.path == "/api/update":
+            self._json(update_report())
         elif url.path == "/api/styles":
             from video_studio.engines import styledna
 
@@ -574,6 +587,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(ai_install(str(body.get("key", ""))))
         if url.path == "/api/ai/use":
             return self._json(ai_use(str(body.get("key", "")), str(body.get("model", ""))))
+        if url.path.startswith("/api/update/"):
+            result = update_action(url.path.rsplit("/", 1)[-1], body)
+            self._json(result, 400 if result.get("error") else 200)
+            if result.get("exit"):  # the installer or rollback swaps the program files once this copy has closed
+                threading.Timer(1.5, lambda: os._exit(0)).start()
+            return None
         if url.path == "/api/setup":
             return self._json(_tool_job("setup", ["setup", "--yes"], "Setup"))
         if url.path == "/api/learn-style":
@@ -602,6 +621,9 @@ def _opts(o: dict) -> list[str]:
         args += ["--caption-script", o["caption_script"]]
     if o.get("target"):
         args += ["--target", str(o["target"])]
+    for key, flag in (("template", "--template"), ("grade", "--grade"), ("transition", "--transition")):
+        if o.get(key) and o.get(key) != "auto":
+            args += [flag, str(o[key])]
     if o.get("no_ai"):
         args.append("--no-ai")
     if o.get("platforms"):
@@ -635,6 +657,65 @@ def system_report(fresh: bool = False) -> dict:
     return background_check("system", _system_report)
 
 
+def machine_report(fresh: bool = False) -> dict:
+    """What this PC can make. The first scan (encoder tests) takes a few seconds, so it runs in the background."""
+    from video_studio import machine
+
+    if not fresh and (app_data_dir() / "machine.json").is_file():
+        try:
+            return {**machine.assess(), "checking": False}
+        except Exception:  # noqa: BLE001 - fall through to a fresh background scan
+            pass
+    return background_check("machine", lambda: machine.assess(machine.scan(fresh=fresh)), fresh=fresh)
+
+
+def machine_check(task: str, seconds: str = "", short_side: str = "") -> dict:
+    from video_studio import machine
+
+    def num(text):
+        try:
+            return float(text) if text else None
+        except ValueError:
+            return None
+
+    try:
+        side = num(short_side)
+        return machine.check(task, seconds=num(seconds), short_side=int(side) if side else None)
+    except Exception as exc:  # noqa: BLE001 - advice only
+        return {"level": "ok", "messages": [], "error": str(exc)}
+
+
+def update_report() -> dict:
+    from video_studio import updates
+
+    info = background_check("update", updates.check)
+    try:
+        previous = updates.previous_versions()
+    except Exception:  # noqa: BLE001
+        previous = []
+    return {"current": __version__, "info": info, "download": updates.status(), "notice": updates.notice(),
+            "auto": bool(config.get("updates.check")), "previous": previous, "running_jobs": running_jobs()}
+
+
+def update_action(action: str, body: dict) -> dict:
+    from video_studio import updates
+
+    if action == "check":
+        return background_check("update", lambda: updates.check(fresh=True), fresh=True)
+    if action == "download":
+        return updates.download()
+    if action == "cancel":
+        return updates.cancel()
+    if action == "install":
+        result = updates.install(running_jobs())
+        return {**result, "exit": True} if result.get("ok") else result
+    if action == "rollback":
+        return updates.rollback(running_jobs())
+    if action == "auto":
+        return updates.set_auto(bool(body.get("on")))
+    return {"error": "Unknown update action."}
+
+
 def _tool_job(kind: str, args: list[str], name: str) -> dict:
     root = workspace() / "_tools" / f"{kind}-{secrets.token_hex(3)}"
     root.mkdir(parents=True, exist_ok=True)
@@ -644,11 +725,87 @@ def _tool_job(kind: str, args: list[str], name: str) -> dict:
     return {"job": job.id, "root": str(root)}
 
 
+QUICK_NAMES = {"photos": "Photos ", "restyle": "Restyle ", "cutout": "Cut-out ", "generate": "AI clip "}
+QUICK_OPTIONS = {"aspect", "quality", "look", "captions", "voice", "music", "template", "grade", "transition"}
+
+
+def running_jobs() -> int:
+    return sum(1 for j in JOBS.values() if j.status in ("running", "stopping") and j.proc and j.proc.poll() is None)
+
+
+def _quick_args(mode: str, body: dict, o: dict, root: Path, name: str) -> list[str] | dict:
+    """Command line for photos, restyle, cut-out and AI clip jobs (each has its own short option set)."""
+    files = [f for f in body.get("files", []) if Path(f).is_file()]
+    common = ["--out", str(root), "--name", name]
+    if mode == "generate":
+        prompt = str(body.get("prompt") or body.get("script") or body.get("brief") or "").strip()
+        if not prompt:
+            return {"error": "Describe the shot you want first."}
+        args = ["generate", prompt, *common, "--aspect", str(o.get("aspect") or "16:9")]
+        if files:
+            args += ["--image", files[0]]
+        if o.get("seconds"):
+            args += ["--seconds", str(float(o["seconds"]))]
+        if o.get("allow_download"):
+            args.append("--allow-download")
+        return args
+    if not files:
+        return {"error": "Add at least one picture." if mode == "photos" else "Add a video file."}
+    if mode == "cutout":
+        bg = str(o.get("background") or "blur")
+        args = ["cutout", files[0], *common, "--background", bg]
+        if o.get("colour"):
+            args += ["--colour", str(o["colour"])]
+        if bg in ("image", "video") and len(files) > 1:
+            args += ["--image" if bg == "image" else "--background-video", files[1]]
+        return args
+    opts = _opts({k: v for k, v in o.items() if k in QUICK_OPTIONS})
+    if o.get("no_music"):
+        opts.append("--no-music")
+    if mode == "photos":
+        args = ["photos", *files, *common, *opts]
+        for key, flag in (("seconds", "--seconds"), ("total", "--total")):
+            if o.get(key):
+                args += [flag, str(float(o[key]))]
+        titles = [t.strip() for t in str(body.get("titles") or "").splitlines()]
+        if any(titles):
+            titles_file = root.parent / f".{root.name}_titles.txt"
+            titles_file.write_text("\n".join(titles), encoding="utf-8")
+            args += ["--titles-file", str(titles_file)]
+            if o.get("narrate"):
+                args.append("--narrate")
+        return args
+    args = ["restyle", files[0], *common, *opts, "--fit", "crop" if o.get("fit") == "crop" else "fill"]
+    if o.get("speed") and float(o["speed"]) != 1.0:
+        args += ["--speed", str(float(o["speed"]))]
+    for key in ("steady", "denoise", "sharpen", "smooth_slow"):
+        if o.get(key):
+            args.append("--" + key.replace("_", "-"))
+    if o.get("background") in ("blur", "colour", "image"):
+        args += ["--background", o["background"]]
+        if o["background"] == "image" and len(files) > 1:
+            args += ["--background-image", files[1]]
+    return args
+
+
 def start_job(body: dict) -> dict:
     mode = body.get("mode", "edit")
-    o = body.get("options", {})
-    name = (body.get("name") or "").strip() or ("Edit " if mode == "edit" else "Video ") + time.strftime("%d %b %H%M")
+    o = dict(body.get("options", {}) or {})
+    if not o.get("quality"):
+        from video_studio import machine
+
+        o["quality"] = machine.default_quality()
+    name = (body.get("name") or "").strip() or QUICK_NAMES.get(mode, "Edit " if mode == "edit" else "Video ") + time.strftime("%d %b %H%M")
     root = workspace() / f"{slug(name)}-{secrets.token_hex(2)}"
+    if mode in QUICK_NAMES:
+        root.parent.mkdir(parents=True, exist_ok=True)
+        args = _quick_args(mode, body, o, root, name)
+        if isinstance(args, dict):
+            return args
+        job = Job(mode, args, root, name)
+        JOBS[job.id] = job
+        job.start()
+        return {"job": job.id, "root": str(root)}
     if mode == "edit":
         files = [f for f in body.get("files", []) if Path(f).is_file()]
         if not files:
@@ -776,6 +933,12 @@ def serve(port: int = 7860, open_browser: bool = True, workspace_dir: str | None
         console.error("No free port found.")
         return 1
     url = f"http://127.0.0.1:{candidate}/"
+    try:
+        from video_studio import updates
+
+        updates.startup(running_jobs)
+    except Exception:  # noqa: BLE001 - updates must never stop the app from opening
+        pass
     console.ok(f"Studio running at {url}  (local only; Ctrl+C to stop)")
     console.info(f"Projects folder: {workspace()}")
     if open_browser:

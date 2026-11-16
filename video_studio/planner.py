@@ -457,6 +457,8 @@ def decide(plan: dict, settings: dict, instructions: str, seed: int | None = Non
             decisions[dim], reasons[dim] = memory.choose(dim, tone, aspect, priors.get(dim), explore=True, rng=rng)
     if not settings.get("captions_enabled", True):
         decisions["captions"], reasons["captions"] = "none", "captions disabled"
+    if settings.get("transition") and settings["transition"] not in memory.DIMENSIONS["transition"] and settings["transition"] in TRANSITIONS:
+        decisions["transition"], reasons["transition"] = settings["transition"], "your instruction/template"
     return {"decisions": decisions, "reasons": reasons}
 
 

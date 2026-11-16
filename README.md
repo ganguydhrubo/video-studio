@@ -56,7 +56,7 @@ Local-first video production for Windows. Free editing tools, with optional AI p
 
 ## Install
 
-1. Run `Takebloom-Setup-1.7.0.exe`. It installs per user, adds itself to PATH and creates Desktop and Start-menu shortcuts called "Takebloom". Open either shortcut, or double-click `VideoStudio.exe` in the portable folder. A separate Edge app window opens after the local server is ready; the default browser is used if Edge is unavailable. No terminal needs to stay open. Uninstall from Settings › Apps; your projects and memory are kept.
+1. Run `Takebloom-Setup-1.8.0.exe`. It installs per user, adds itself to PATH and creates Desktop and Start-menu shortcuts called "Takebloom". Open either shortcut, or double-click `VideoStudio.exe` in the portable folder. A separate Edge app window opens after the local server is ready; the default browser is used if Edge is unavailable. No terminal needs to stay open. Uninstall from Settings › Apps; your projects and memory are kept.
 2. Run `video-studio setup` (or open the Studio's System page). It scans this PC, explains in plain English what it can
    and cannot edit, and installs everything it needs after one confirmation (~1.5 GB, all free and open source).
    `video-studio setup --report` only scans. `video-studio doctor` lists every tool with the exact fix:
@@ -70,7 +70,7 @@ Local-first video production for Windows. Free editing tools, with optional AI p
 
    Every install shows the plan and the licence first, then asks before it runs.
 
-A portable zip (`Takebloom-1.7.0-portable.zip`) is also built. Extract the entire archive before opening `VideoStudio.exe`; keep `_internal` beside both executables. `video-studio.exe` remains the command-line entry and opens Studio when run without arguments. To run from source, use `pip install -e .` and then `video-studio ...`.
+A portable zip (`Takebloom-1.8.0-portable.zip`) is also built. Extract the entire archive before opening `VideoStudio.exe`; keep `_internal` beside both executables. `video-studio.exe` remains the command-line entry and opens Studio when run without arguments. To run from source, use `pip install -e .` and then `video-studio ...`.
 
 If startup fails, the desktop launcher shows the error. Logs are in `%LOCALAPPDATA%\VideoStudio\logs\startup.log` (server), `launcher-error.log` (launcher), and `install.log` (installer). Updating validates the extracted app before replacing the old copy and retains the old program folder as `VideoStudio-previous` for recovery.
 
@@ -92,6 +92,13 @@ video-studio resume [--from plan]                     # every stage is resumable
 video-studio feedback 5 --notes "loved the captions, music a bit loud"
 video-studio edit talk.mov "viral Hinglish reel" --fx viral --broll "C:\Videos\my b-roll"
 video-studio ai status | ai login claude | ai use opencode | ai test
+video-studio photos "C:\Pictures\Goa" --template travel --titles "Day one|The beach|Home"   # pictures -> video
+video-studio restyle clip.mp4 --aspect 9:16 --grade teal_orange --speed 0.5 --smooth-slow --steady
+video-studio cutout talk.mp4 --background colour --colour "#1d2b2a"    # or blur | image | video | transparent
+video-studio generate "drone shot over tea gardens at sunrise"        # only on a PC with a large NVIDIA card
+video-studio machine                                  # what THIS PC can make: limits, speed, what needs the cloud
+video-studio library                                  # 24 templates, 16 colour looks, 57 transitions
+video-studio update check | download | install | rollback | auto-on | auto-off
 ```
 
 The script format is plain paragraphs (one scene each), with optional tags: `# Title`, `[3D: rocket]`, `[STAT: 70% | label]`, `[QUOTE: text - Author]`, bullet lists, `[IMAGE: path]`, `[CHART: ...]`, `[CTA: ...]` and `[HYPERFRAMES]`.

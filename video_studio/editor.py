@@ -48,6 +48,8 @@ def run_cli(args) -> int:
         brief = items.pop()
     if args.brief_file:
         brief = Path(args.brief_file).read_text(encoding="utf-8")
+    from video_studio.cli import apply_template
+    brief = apply_template(args, brief or "")
     footage = [Path(f).resolve() for f in items]
     if not footage:
         raise ToolError("No footage given.", 'video-studio edit my_clip.mp4 "60 second reel, remove mistakes"')
@@ -1145,7 +1147,8 @@ def render(proj: Project) -> Path:
     proj.write("edit_manifest.json", m)
     console.step("Finishing: graphics, captions, grade")
     video_only = proj.build / "video_master.mp4"
-    grade = ",".join(x for x in [m.get("look_grade") if s.get("look") and fx == "off" else ""] if x)
+    from video_studio import library
+    grade = ",".join(x for x in [m.get("look_grade") if s.get("look") and fx == "off" else "", library.grade_filter(s.get("grade"))] if x)
     compose.assemble_video([cut_video], [total], [], 0.0, m["fps"], w, h, grade, ass, s["quality"], video_only,
                            overlays=overlays, total=total)
     console.step("Mixing voice, music and effects")

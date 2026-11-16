@@ -24,9 +24,34 @@ def _proj(args) -> Project:
     return find(getattr(args, "project", None))
 
 
+def apply_template(args, brief: str = "") -> str:
+    """Fill unset options from --template (your own flags always win). Returns the brief with the template's aim."""
+    from video_studio import library
+
+    key = getattr(args, "template", None)
+    if not library.template(key):
+        return brief
+    given = {k: getattr(args, k, None) for k in ("aspect", "pacing", "captions", "music", "transition", "look", "motion", "grade")}
+    if getattr(args, "fx", None) not in (None, "auto"):
+        given["fx"] = args.fx
+    merged, brief = library.apply_template(key, given, brief)
+    for k, v in merged.items():
+        if k == "no_music":
+            if not getattr(args, "music_file", None):
+                args.no_music = True
+        elif k == "fx":
+            if getattr(args, "fx", "auto") in (None, "auto"):
+                args.fx = v
+        elif hasattr(args, k) and getattr(args, k, None) in (None, ""):
+            setattr(args, k, v)
+        elif k == "seconds_per_photo" and hasattr(args, "seconds"):
+            args.seconds = args.seconds or v
+    return brief
+
+
 def _apply_overrides(proj: Project, args) -> None:
     changes = {}
-    for key in ("aspect", "quality", "voice", "look", "pacing", "transition", "music", "captions", "motion", "style"):
+    for key in ("aspect", "quality", "voice", "look", "pacing", "transition", "music", "captions", "motion", "style", "grade"):
         val = getattr(args, key, None)
         if val:
             changes[key] = val
@@ -197,8 +222,9 @@ def cmd_analyze(args) -> int:
     proj = _proj(args)
     if args.script:
         shutil.copy2(args.script, proj.root / "script.txt")
-    if args.instructions:
-        (proj.root / "instructions.txt").write_text(args.instructions, encoding="utf-8")
+    instructions = apply_template(args, args.instructions or "")
+    if instructions:
+        (proj.root / "instructions.txt").write_text(instructions, encoding="utf-8")
     _apply_overrides(proj, args)
     pipeline.analyze(proj, use_ai=not args.no_ai, seed=args.seed)
     console.info(f"Review {proj.root / 'storyboard.md'} (edit build/plan.json to change anything), then `video-studio storyboard`.")
@@ -504,6 +530,193 @@ def cmd_clean(args) -> int:
     return 0
 
 
+# ------------------------------------------------------------- quick productions (photos, restyle, cut-out, AI clip)
+
+def _quick_project(args, kind: str, default_name: str) -> Project:
+    name = args.name or default_name
+    root = Path(args.out or (Path(config.get("workspace") or ".") / slug(name))).resolve()
+    proj = Project(root) if (root / "project.json").exists() else create(root, name, kind, aspect=getattr(args, "aspect", None) or "9:16")
+    console.attach_log(proj.logs / "run.log")
+    return proj
+
+
+def _finish_quick(proj: Project, result: dict, started: float) -> int:
+    """Record a finished quick production so Projects shows it as completed, with a thumbnail."""
+    from video_studio.engines import ff
+    from video_studio.project import STAGES
+
+    master = Path(result["output"])
+    if master.suffix.lower() == ".mp4" and master != proj.output / "master.mp4" and master.exists():
+        shutil.copy2(master, proj.output / "master.mp4")
+    thumb = proj.exports / f"{slug(proj.data['name'])}_thumbnail.jpg"
+    try:
+        ff.frame_at(proj.output / "master.mp4", min(1.0, float(result.get("seconds") or 1) / 3), thumb, 720)
+    except Exception:  # noqa: BLE001 - a thumbnail is a nicety
+        pass
+    for stage in STAGES:
+        proj.mark(stage, "done", **({"file": str(proj.output / "master.mp4")} if stage == "render" else {}))
+    data = proj.data
+    data["result"] = result
+    data["took_seconds"] = round(time.time() - started, 1)
+    proj.save(data)
+    return 0
+
+
+def _precheck(task: str, seconds: float | None = None, short_side: int | None = None) -> None:
+    from video_studio import machine
+
+    try:
+        c = machine.check(task, seconds=seconds, short_side=short_side)
+    except Exception:  # noqa: BLE001 - the hardware check is advice; never block on a scan problem
+        return
+    for m in c.get("messages", []):
+        (console.warn if c["level"] != "ok" else console.info)("This PC: " + m)
+    if c["level"] == "stop":
+        raise ToolError(" ".join(c["messages"]))
+
+
+def cmd_photos(args) -> int:
+    from video_studio import photos
+
+    brief = apply_template(args, "")
+    pics = photos.collect(args.images)
+    _precheck("photos", seconds=args.total or (args.seconds or 3.0) * max(1, len(pics)), short_side=args.height)
+    proj = _quick_project(args, "photos", "Photos " + time.strftime("%d %b %H%M"))
+    titles = Path(args.titles_file).read_text(encoding="utf-8").splitlines() if args.titles_file else \
+        ([t for t in args.titles.split("|")] if args.titles else [])
+    started = time.time()
+    result = photos.run(pics, proj.root, aspect=args.aspect or "9:16", short_side=args.height, fps=args.fps or 30,
+                        seconds=args.seconds, total=args.total, transition=args.transition or "smooth",
+                        grade=None if args.grade == "none" else (args.grade or "natural"), mood=args.music or "uplifting",
+                        music_file=args.music_file, no_music=args.no_music, titles=titles, narrate=args.narrate,
+                        voice=args.voice or "auto", caption_style=args.captions or "bold_pop", look=args.look or "midnight",
+                        quality=args.quality or "standard")
+    if brief:
+        (proj.root / "brief.txt").write_text(brief, encoding="utf-8")
+    return _finish_quick(proj, result, started)
+
+
+def cmd_restyle(args) -> int:
+    from video_studio import restyle
+    from video_studio.engines import ff
+
+    apply_template(args, "")
+    _precheck("cutout" if args.background else "restyle", seconds=ff.duration(Path(args.video)), short_side=args.height)
+    proj = _quick_project(args, "restyle", Path(args.video).stem + " restyled")
+    started = time.time()
+    result = restyle.run(args.video, proj.root, aspect=args.aspect, short_side=args.height, fit=args.fit,
+                         grade=None if args.grade in (None, "none") else args.grade, speed=args.speed, smooth_slow=args.smooth_slow,
+                         steady=args.steady, denoise=args.denoise, sharpen=args.sharpen, fps=args.fps,
+                         mood=None if args.no_music else args.music, music_file=args.music_file, background=args.background,
+                         background_image=args.background_image, quality=args.quality or "standard")
+    return _finish_quick(proj, result, started)
+
+
+def cmd_cutout(args) -> int:
+    from video_studio import cutout
+    from video_studio.engines import ff
+
+    _precheck("cutout", seconds=ff.duration(Path(args.video)))
+    proj = _quick_project(args, "cutout", Path(args.video).stem + " cut-out")
+    started = time.time()
+    transparent = args.background == "transparent"
+    out = proj.output / (("cutout.mov" if args.mov else "cutout.webm") if transparent else "master.mp4")
+    media = args.image or args.background_video
+    result = cutout.run(Path(args.video), out, args.background, image=Path(media) if media else None, colour=args.colour)
+    result = dict(result or {})
+    result.setdefault("output", str(out))
+    if transparent:  # the transparent file is the deliverable; Projects gets a playable preview on a plain colour
+        preview = proj.output / "master.mp4"
+        ff.ff(["-y", "-i", str(out), "-f", "lavfi", "-i", "color=c=0x1d2b2a:s=16x16",
+               "-filter_complex", "[1:v][0:v]scale2ref[bg][fg];[bg][fg]overlay=shortest=1,format=yuv420p[v]",
+               "-map", "[v]", "-map", "0:a?", "-c:a", "aac", "-c:v", "libx264", "-crf", "20", str(preview)], check=False)
+        result["transparent_file"] = str(out)
+        result["output"] = str(preview) if preview.exists() else str(out)
+    return _finish_quick(proj, result, started)
+
+
+def cmd_generate(args) -> int:
+    from video_studio import generate
+
+    _precheck("generate_image" if args.image else "generate")
+    proj = _quick_project(args, "generate", "AI clip " + time.strftime("%d %b %H%M"))
+    started = time.time()
+    result = generate.run_generation(args.prompt, proj.root, image=args.image, aspect=args.aspect or "16:9",
+                                     seconds=args.seconds, allow_download=args.allow_download)
+    return _finish_quick(proj, result, started)
+
+
+def cmd_machine(args) -> int:
+    from video_studio import machine
+
+    a = machine.assess(machine.scan(fresh=args.fresh))
+    if args.json:
+        print(json.dumps(a, indent=2))
+        return 0
+    console.info(a["tier_label"])
+    for fact in a["facts"]:
+        console.info("  " + fact)
+    console.info("")
+    console.info(a["summary"])
+    console.info(a["speed"]["text"])
+    marks = {"ready": "[ok]   ", "slow": "[slow] ", "install": "[get]  ", "cloud_only": "[cloud]", "not_here": "[no]   "}
+    for f in a["features"]:
+        console.info(f"  {marks.get(f['status'], '')} {f['name']}: {f['why']}")
+    return 0
+
+
+def cmd_library(args) -> int:
+    from video_studio import library
+
+    cat = library.catalog()
+    if args.json:
+        print(json.dumps(cat, indent=2))
+        return 0
+    console.info(f"{cat['counts']['templates']} templates, {cat['counts']['looks']} colour looks, "
+                 f"{cat['counts']['transitions']} transitions in {cat['counts']['transition_families']} families")
+    console.info("Templates (--template):")
+    for t in cat["templates"]:
+        console.info(f"  {t['key']:<16} {t['name']} [{t['category']}, {t['aspect']}, {'/'.join(t['modes'])}]")
+    console.info("Colour looks (--grade):")
+    for g in cat["grades"]:
+        console.info(f"  {g['key']:<16} {g['name']} - {g['mood']}")
+    console.info("Transition families (--transition):")
+    for t in cat["transitions"]:
+        console.info(f"  {t['key']:<16} {t['name']} - {t['mood']}")
+    return 0
+
+
+def cmd_update(args) -> int:
+    from video_studio import updates
+
+    if args.action == "check":
+        info = updates.check(fresh=True)
+        if info.get("error"):
+            console.warn(info["error"])
+            return 1
+        console.info(f"Installed {info['current']}, latest {info.get('latest') or '?'}: "
+                     + ("an update is available." if info.get("available") else "you are up to date."))
+        return 0
+    if args.action == "download":
+        r = updates.download()
+        if r.get("error"):
+            console.warn(r["error"])
+            return 1
+        while updates.status().get("state") in ("downloading", "verifying"):
+            time.sleep(0.5)
+        st = updates.status()
+        (console.ok if st.get("state") == "ready" else console.warn)(f"Download {st.get('state')}: {st.get('error') or st.get('version', '')}")
+        return 0 if st.get("state") == "ready" else 1
+    if args.action == "install":
+        r = updates.install(0)
+    elif args.action == "rollback":
+        r = updates.rollback(0)
+    else:
+        r = updates.set_auto(args.action == "auto-on")
+    (console.warn if r.get("error") else console.ok)(r.get("error") or r.get("text") or "Done.")
+    return 1 if r.get("error") else 0
+
+
 def cmd_studio(args) -> int:
     from video_studio import studio
 
@@ -521,7 +734,11 @@ def _add_style_options(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("creative overrides (otherwise the taste model decides)")
     g.add_argument("--look", choices=list(memory.DIMENSIONS["look"]))
     g.add_argument("--pacing", choices=memory.DIMENSIONS["pacing"])
-    g.add_argument("--transition", choices=memory.DIMENSIONS["transition"])
+    from video_studio import library
+    g.add_argument("--transition", choices=list(library.TRANSITION_FAMILIES), help="transition family (see `video-studio library`)")
+    g.add_argument("--grade", choices=["none", *library.GRADES], help="colour look, a generated 3D LUT (see `video-studio library`)")
+    g.add_argument("--template", choices=[t["key"] for t in library.TEMPLATES],
+                   help="production recipe: sets format, pacing, captions, music, look and transitions unless you set them")
     g.add_argument("--music", choices=memory.DIMENSIONS["music"])
     g.add_argument("--captions", choices=memory.DIMENSIONS["captions"])
     g.add_argument("--motion", choices=memory.DIMENSIONS["motion"])
@@ -699,6 +916,69 @@ def build_parser() -> argparse.ArgumentParser:
     _add_format_options(s)
     _add_style_options(s)
     s.set_defaults(func=cmd_edit)
+
+    s = sub.add_parser("photos", help="pictures -> video: pan and zoom, transitions, colour look, titles, music (local)")
+    s.add_argument("images", nargs="+", help="image files and/or folders, in order")
+    s.add_argument("--name")
+    s.add_argument("--out")
+    s.add_argument("--seconds", type=float, help="seconds per picture (default: whole music bars, about 3 s)")
+    s.add_argument("--total", type=float, help="total length in seconds (spreads pictures evenly)")
+    s.add_argument("--titles", help='one title per picture, separated by |, e.g. "Day one|The beach|Home"')
+    s.add_argument("--titles-file", help="text file, one title per line, in picture order")
+    s.add_argument("--narrate", action="store_true", help="read the titles aloud with the offline voice")
+    _add_format_options(s)
+    _add_style_options(s)
+    s.set_defaults(func=cmd_photos)
+
+    s = sub.add_parser("restyle", help="video -> video: new look, frame shape, speed, steadier, background (local)")
+    s.add_argument("video")
+    s.add_argument("--name")
+    s.add_argument("--out")
+    s.add_argument("--fit", choices=["fill", "crop"], default="fill", help="new frame shape: blurred fill (default) or crop")
+    s.add_argument("--speed", type=float, default=1.0, help="0.25 to 4 (0.5 = half speed)")
+    s.add_argument("--smooth-slow", action="store_true", help="make in-between frames for smooth slow motion (slow)")
+    s.add_argument("--steady", action="store_true", help="reduce camera shake")
+    s.add_argument("--denoise", action="store_true", help="clean grainy low-light video")
+    s.add_argument("--sharpen", action="store_true")
+    s.add_argument("--background", choices=["blur", "colour", "image"], help="cut out the person and replace the background")
+    s.add_argument("--background-image")
+    _add_format_options(s)
+    _add_style_options(s)
+    s.set_defaults(func=cmd_restyle)
+
+    s = sub.add_parser("cutout", help="remove or replace the background behind a person (local)")
+    s.add_argument("video")
+    s.add_argument("--name")
+    s.add_argument("--out")
+    s.add_argument("--background", choices=["blur", "colour", "image", "video", "transparent"], default="blur")
+    s.add_argument("--colour", default="#00B140", help="background colour for --background colour")
+    s.add_argument("--image", help="background picture for --background image")
+    s.add_argument("--background-video", help="background video for --background video")
+    s.add_argument("--mov", action="store_true", help="transparent output as ProRes 4444 .mov instead of .webm")
+    s.set_defaults(func=cmd_cutout)
+
+    s = sub.add_parser("generate", help="AI video from text or a picture (needs a large NVIDIA card; says so otherwise)")
+    s.add_argument("prompt")
+    s.add_argument("--image", help="first picture for picture-to-video")
+    s.add_argument("--aspect", choices=["16:9", "9:16", "1:1", "4:5"], default="16:9")
+    s.add_argument("--seconds", type=float, default=5.0)
+    s.add_argument("--allow-download", action="store_true", help="allow the one-time model download (several GB)")
+    s.add_argument("--name")
+    s.add_argument("--out")
+    s.set_defaults(func=cmd_generate)
+
+    s = sub.add_parser("machine", help="what this PC can make: limits, speed, local models, what needs the cloud")
+    s.add_argument("--fresh", action="store_true", help="scan the hardware again")
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(func=cmd_machine)
+
+    s = sub.add_parser("library", help="templates, colour looks and transitions")
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(func=cmd_library)
+
+    s = sub.add_parser("update", help="app updates: check | download | install | rollback | auto-on | auto-off")
+    s.add_argument("action", choices=["check", "download", "install", "rollback", "auto-on", "auto-off"])
+    s.set_defaults(func=cmd_update)
 
     s = sub.add_parser("resume", help="continue an interrupted job from the first unfinished stage")
     s.add_argument("--from", dest="from_stage", help="redo from this stage (e.g. plan, cut, produce, render)")

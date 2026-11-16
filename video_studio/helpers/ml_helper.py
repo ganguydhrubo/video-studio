@@ -9,6 +9,7 @@ result to --out and exits. Missing libraries produce {"ok": false, "missing": ..
   denoise     noisereduce spectral gating on a wav
   faces       MediaPipe / OpenCV face track -> per-second horizontal centre
   beats       librosa beat + onset times
+  matte       MediaPipe selfie person matte (rembg fallback) -> greyscale mask video via FFmpeg
 """
 
 from __future__ import annotations
@@ -289,6 +290,223 @@ def prosody(args: argparse.Namespace) -> None:
     Path(args.out).write_text(json.dumps({"ok": True, "words": out}), encoding="utf-8")
 
 
+def _guided(guide, src, radius: int, eps: float, sub: int = 2):
+    """Fast guided filter (He & Sun 2015, grey guide): the soft model mask snaps to the real edges in the frame
+    (hair, shoulders). Coefficients are found at 1/sub size and applied at full size."""
+    import cv2
+
+    h, w = guide.shape[:2]
+    gs = cv2.resize(guide, (max(1, w // sub), max(1, h // sub)), interpolation=cv2.INTER_AREA) if sub > 1 else guide
+    ps = cv2.resize(src, (gs.shape[1], gs.shape[0]), interpolation=cv2.INTER_AREA) if sub > 1 else src
+    r = max(1, radius // sub)
+    k = (2 * r + 1, 2 * r + 1)
+
+    def box(x):
+        return cv2.boxFilter(x, -1, k, borderType=cv2.BORDER_REFLECT)
+
+    mean_i, mean_p = box(gs), box(ps)
+    cov = box(gs * ps) - mean_i * mean_p
+    var = box(gs * gs) - mean_i * mean_i
+    a = cov / (var + eps)
+    b = mean_p - a * mean_i
+    mean_a, mean_b = box(a), box(b)
+    if sub > 1:
+        mean_a = cv2.resize(mean_a, (w, h), interpolation=cv2.INTER_LINEAR)
+        mean_b = cv2.resize(mean_b, (w, h), interpolation=cv2.INTER_LINEAR)
+    return mean_a * guide + mean_b
+
+
+class _Segmenter:
+    """Person probability (0..1, float32) for one BGR frame. MediaPipe selfie-multiclass first, rembg if that fails."""
+
+    def __init__(self, model: str, fps: float) -> None:
+        self.engine, self.fallback = "", ""
+        self.mp_seg = self.rembg = None
+        self.fps, self.index = fps, 0
+        try:
+            import mediapipe as mp
+            from mediapipe.tasks.python import BaseOptions, vision
+
+            if not model or not Path(model).exists():
+                raise FileNotFoundError(f"model not found: {model}")
+            self.mp = mp
+            self.mp_seg = vision.ImageSegmenter.create_from_options(vision.ImageSegmenterOptions(
+                base_options=BaseOptions(model_asset_path=model), running_mode=vision.RunningMode.VIDEO,
+                output_confidence_masks=True, output_category_mask=False))
+            self.engine = "mediapipe-selfie-multiclass"
+        except Exception as exc:  # noqa: BLE001 - any MediaPipe problem -> try rembg
+            self._to_rembg(f"MediaPipe unavailable ({str(exc)[:200]})")
+
+    def _to_rembg(self, why: str) -> None:
+        self.mp_seg = None
+        self.fallback = why + "; used rembg instead"
+        try:
+            from rembg import new_session
+
+            for name in ("u2netp", "isnet-general-use"):
+                try:
+                    self.rembg = new_session(name)
+                    self.engine = f"rembg-{name}"
+                    return
+                except Exception:  # noqa: BLE001
+                    continue
+        except Exception:  # noqa: BLE001
+            pass
+        self.engine = ""
+
+    def __call__(self, bgr):
+        import cv2
+        import numpy as np
+
+        h, w = bgr.shape[:2]
+        if self.mp_seg is not None:
+            try:  # the model sees 256x256 anyway: a ~512 px input keeps the returned masks small and fast
+                s = min(1.0, 512 / max(h, w))
+                small = cv2.resize(bgr, (max(1, round(w * s)), max(1, round(h * s))), interpolation=cv2.INTER_AREA)
+                rgb = np.ascontiguousarray(cv2.cvtColor(small, cv2.COLOR_BGR2RGB))
+                res = self.mp_seg.segment_for_video(self.mp.Image(image_format=self.mp.ImageFormat.SRGB, data=rgb),
+                                                    int(self.index * 1000 / (self.fps or 30)))
+                self.index += 1
+                background = np.squeeze(res.confidence_masks[0].numpy_view()).astype(np.float32)
+                return 1.0 - background  # person = hair + skin + clothes + accessories
+            except Exception as exc:  # noqa: BLE001 - switch engines mid-way rather than fail the whole video
+                self._to_rembg(f"MediaPipe failed at frame {self.index} ({str(exc)[:200]})")
+                if self.rembg is None:
+                    raise
+        from PIL import Image
+        from rembg import remove
+
+        s = min(1.0, 320 / max(h, w))
+        small = cv2.resize(bgr, (max(1, round(w * s)), max(1, round(h * s))), interpolation=cv2.INTER_AREA)
+        mask = remove(Image.fromarray(cv2.cvtColor(small, cv2.COLOR_BGR2RGB)), session=self.rembg, only_mask=True)
+        return np.asarray(mask, dtype=np.float32) / 255.0
+
+
+def _mask_encoder(ffmpeg: str, dest: Path) -> list[str]:
+    import subprocess
+
+    try:
+        enc = subprocess.run([ffmpeg, "-hide_banner", "-encoders"], capture_output=True, text=True, timeout=60,
+                             creationflags=0x08000000 if sys.platform == "win32" else 0).stdout
+    except (OSError, subprocess.SubprocessError):
+        enc = ""
+    if dest.suffix.lower() == ".mkv" and " ffv1 " in enc:
+        return ["-c:v", "ffv1", "-level", "3", "-slices", "4", "-g", "1"]
+    return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "12", "-pix_fmt", "gray"]
+
+
+def matte(args: argparse.Namespace) -> None:
+    """Greyscale person matte (255 = person) at the input's size and frame rate, frames piped raw into FFmpeg."""
+    import subprocess
+    import tempfile
+    import time
+
+    try:
+        import cv2
+        import numpy as np
+    except ImportError as exc:
+        _fail(Path(args.out), "opencv-python numpy", str(exc))
+    started = time.time()
+    cap = cv2.VideoCapture(args.video)
+    ok, frame = cap.read()
+    if not ok:
+        raise RuntimeError(f"OpenCV could not read a frame from {args.video}")
+    fps_text = args.fps or f"{cap.get(cv2.CAP_PROP_FPS) or 30:.6f}"
+    num, _, den = fps_text.partition("/")
+    fps = float(num) / float(den or 1)
+    height, width = frame.shape[:2]  # first decoded frame: already rotated like FFmpeg rotates it
+    scale = min(1.0, args.max_side / max(width, height))
+    ww, wh = max(2, round(width * scale)), max(2, round(height * scale))
+    radius = max(3, round(max(ww, wh) / 160))
+    segment = _Segmenter(args.model, fps)
+    if not segment.engine:
+        _fail(Path(args.out), "mediapipe rembg", segment.fallback)
+
+    import queue
+    import threading
+
+    dest = Path(args.dest)
+    log = tempfile.TemporaryFile()
+    cmd = [args.ffmpeg, "-hide_banner", "-nostdin", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "gray",
+           "-s", f"{width}x{height}", "-r", fps_text, "-i", "-", *_mask_encoder(args.ffmpeg, dest), str(dest)]
+    flags = (0x08000000 | 0x00004000) if sys.platform == "win32" else 0  # no window, below-normal priority
+    enc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=log, creationflags=flags)
+
+    # The model is the slow part (~100-200 ms a frame on a laptop CPU). Edge refinement and writing run on a
+    # second thread (OpenCV/NumPy release the GIL) while the model works on the next frame.
+    jobs: queue.Queue = queue.Queue(maxsize=4)
+    failure: list[BaseException] = []
+
+    def refine_and_write() -> None:
+        while True:
+            item = jobs.get()
+            if item is None:
+                return
+            if failure:
+                continue  # drain the queue so the producer never blocks
+            work, prob = item
+            try:
+                soft = cv2.resize(prob, (ww, wh), interpolation=cv2.INTER_LINEAR)
+                guide = cv2.cvtColor(work, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
+                m = _guided(guide, soft, radius, 1e-2)
+                m = np.clip((m - 0.15) / 0.7, 0.0, 1.0)  # solid inside, no faint grey veil outside
+                m = cv2.GaussianBlur(m, (0, 0), 0.8)  # light edge feather
+                if scale < 1.0:
+                    m = cv2.resize(m, (width, height), interpolation=cv2.INTER_LINEAR)
+                enc.stdin.write((m * 255.0 + 0.5).astype(np.uint8).tobytes())
+            except BaseException as exc:  # noqa: BLE001 - reported by the main thread
+                failure.append(exc)
+
+    writer = threading.Thread(target=refine_and_write, daemon=True)
+    writer.start()
+    stride = max(1, args.stride)
+    prev = raw = None
+    frames = 0
+    try:
+        while ok and not failure:
+            work = frame if scale >= 1.0 else cv2.resize(frame, (ww, wh), interpolation=cv2.INTER_AREA)
+            if raw is None or frames % stride == 0:  # in between, the guided filter moves the edges with the frame
+                raw = segment(work)
+            prob = raw
+            # temporal smoothing (EMA) that backs off where the matte changes a lot, so fast moves do not ghost
+            if prev is not None and prev.shape == prob.shape and args.smooth > 0:
+                weight = args.smooth * np.clip(1.0 - np.abs(prob - prev) * 2.0, 0.0, 1.0)
+                prob = weight * prev + (1.0 - weight) * prob
+            prev = prob
+            jobs.put((work, prob))
+            frames += 1
+            ok, frame = cap.read()
+        jobs.put(None)
+        writer.join()
+        if failure:
+            raise failure[0]
+        enc.stdin.close()
+        code = enc.wait()
+    except (BrokenPipeError, OSError):
+        enc.kill()
+        code = enc.wait()
+    finally:
+        cap.release()
+        if writer.is_alive():
+            failure.append(RuntimeError("stopped"))
+            try:
+                jobs.put_nowait(None)
+            except queue.Full:
+                pass
+        if enc.poll() is None:  # the segmenter raised: do not leave FFmpeg waiting on the pipe
+            enc.kill()
+    if code != 0:
+        log.seek(0)
+        raise RuntimeError("FFmpeg could not write the mask video: " + log.read().decode("utf-8", "replace")[-800:])
+    seconds = time.time() - started
+    Path(args.out).write_text(json.dumps({
+        "ok": True, "dest": str(dest), "engine": segment.engine, "fallback": segment.fallback, "frames": frames,
+        "fps": round(fps, 3), "width": width, "height": height, "work_size": [ww, wh], "seconds": round(seconds, 2),
+        "speed_fps": round(frames / seconds, 2) if seconds else 0.0, "encoder": cmd[cmd.index("-c:v") + 1],
+        "stride": stride}),
+        encoding="utf-8")
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -319,10 +537,20 @@ def main() -> None:
     pr = sub.add_parser("prosody")
     pr.add_argument("--audio", required=True)
     pr.add_argument("--words", required=True)
-    for sp in (t, k, d, f, b, pr):
+    mt = sub.add_parser("matte")
+    mt.add_argument("--video", required=True)
+    mt.add_argument("--dest", required=True)
+    mt.add_argument("--model", default="")
+    mt.add_argument("--ffmpeg", default="ffmpeg")
+    mt.add_argument("--fps", default="")  # exact rate from ffprobe, e.g. 30000/1001
+    mt.add_argument("--smooth", type=float, default=0.6)
+    mt.add_argument("--max-side", type=int, default=1280)
+    mt.add_argument("--stride", type=int, default=1)  # run the model on every Nth frame (2 = about twice as fast)
+    for sp in (t, k, d, f, b, pr, mt):
         sp.add_argument("--out", required=True)
     args = p.parse_args()
-    {"transcribe": transcribe, "kokoro": kokoro, "denoise": denoise, "faces": faces, "beats": beats, "prosody": prosody}[args.cmd](args)
+    {"transcribe": transcribe, "kokoro": kokoro, "denoise": denoise, "faces": faces, "beats": beats, "prosody": prosody,
+     "matte": matte}[args.cmd](args)
 
 
 if __name__ == "__main__":

@@ -16,6 +16,10 @@ DEFAULTS: dict[str, Any] = {
     "ai.models": {},                  # provider -> model name, empty = CLI default
     "ai.timeout": 240,
     "ai.max_calls_per_project": 12,
+    # updates: read the public latest-release record on GitHub (nothing about you is sent)
+    "updates.check": True,
+    # local AI video generation model (Hugging Face id), used only on PCs with a large NVIDIA card
+    "generate.model": "",
     # tool path overrides (empty = auto-detect)
     "tools.ffmpeg": "",
     "tools.ffprobe": "",

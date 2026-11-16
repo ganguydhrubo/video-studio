@@ -19,7 +19,7 @@ a = Analysis(
         (str(PKG / "assets" / "app-icon.ico"), "assets"),
         (str(PKG / "assets" / "takebloom-logo.png"), "assets"),
     ],
-    hiddenimports=["video_studio.editor", "video_studio.studio", "video_studio.engines.hyperframes", "video_studio.brain",
+    hiddenimports=["video_studio.editor", "video_studio.studio", "video_studio.machine", "video_studio.library", "video_studio.updates", "video_studio.photos", "video_studio.restyle", "video_studio.cutout", "video_studio.generate", "video_studio.engines.hyperframes", "video_studio.brain",
                    "video_studio.learn", "video_studio.setup", "video_studio.engines.sense", "video_studio.engines.style",
                    "video_studio.engines.styledna", "video_studio.shorts", "video_studio.vocab", "video_studio.watch", "video_studio.engines.arranger", "video_studio.dub", "video_studio.story", "video_studio.broll"],
     excludes=["tkinter", "unittest", "pydoc_data", "matplotlib", "scipy", "torch", "cv2", "pandas", "IPython"],
@@ -35,7 +35,7 @@ exe = EXE(
     version=str(ROOT / "packaging" / "version_info.txt"),
 )
 gui = Analysis([str(ROOT / "packaging" / "gui_entry.py")], pathex=[str(ROOT)],
-               hiddenimports=["video_studio.launcher"], excludes=a.excludes, noarchive=False)
+               hiddenimports=["video_studio.launcher", "video_studio.taskbar"], excludes=a.excludes, noarchive=False)
 gui_exe = EXE(PYZ(gui.pure), gui.scripts, [], exclude_binaries=True,
               name="VideoStudio", console=False, icon=str(ROOT / "branding" / "app-icon.ico"),
               version=str(ROOT / "packaging" / "version_info.txt"))

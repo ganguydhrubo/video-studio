@@ -79,14 +79,25 @@ def launch(open_browser: bool = True) -> str:
 def main() -> int:
     try:
         launch()
-        return 0
     except Exception as exc:
-        from video_studio.util import app_data_dir
+        return _fail(exc)
+    # Stay as a tiny helper while the window is open: it gives the Edge app window Takebloom's own taskbar
+    # button and logo instead of Edge's globe (see taskbar.py). Never fatal.
+    try:
+        from video_studio import taskbar
+        taskbar.watch()
+    except Exception:  # noqa: BLE001
+        pass
+    return 0
 
-        path = app_data_dir() / "logs" / "launcher-error.log"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(traceback.format_exc(), encoding="utf-8")
-        if os.name == "nt":
-            import ctypes
-            ctypes.windll.user32.MessageBoxW(None, f"{exc}\n\nFull details: {path}", "Video Studio could not open", 0x10)
-        return 1
+
+def _fail(exc: Exception) -> int:
+    from video_studio.util import app_data_dir
+
+    path = app_data_dir() / "logs" / "launcher-error.log"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(traceback.format_exc(), encoding="utf-8")
+    if os.name == "nt":
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(None, f"{exc}\n\nFull details: {path}", "Takebloom could not open", 0x10)
+    return 1

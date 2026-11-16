@@ -72,3 +72,13 @@
 - Gemini CLI with a personal Google sign-in can be refused by Google ("not eligible"). Takebloom then tries the next free AI first for six hours. A free GEMINI_API_KEY from aistudio.google.com avoids the refusal.
 - With no shorter length asked for, every spoken line is kept in recorded order. An AI editor's cut that drops lines is refused. This keeps the message whole, but it also keeps weak lines; ask for a length or "shorter" to let the editor cut.
 - The learned keep/cut model only gives advice when a validated one exists. It never cuts on its own. No audience or retention model exists.
+
+## Production features 1.8.0
+
+- AI clip generation (Wan 2.2) has only been tested up to the hardware check. It has not been run on a real NVIDIA card yet. It needs Python with CUDA PyTorch, diffusers, transformers and accelerate, and a several-GB model download that you must allow. Clips are short: up to 5 seconds below 24 GB of graphics memory, 8 seconds at 24 GB or more. AMD and Intel cards cannot generate locally.
+- Hardware limits, speeds and expected times are estimates for the kind of PC until Takebloom has measured this PC on a finished edit. Hardware encoders are tested with a one-frame encode; NVIDIA NVENC and AMD AMF were not available on the release-test PC.
+- The background cut-out runs on the processor at about 4 to 7 frames a second on the release-test laptop. A 60-second clip takes several minutes. Hair edges are soft, thin objects (glasses arms) can be partly cut, and a dark area next to a person can bleed into the cut-out. Transparent WebM is slow to encode. Phone video with a variable frame rate may drift slightly. Cut-out masks are cached in the app's cache folder until you clean it.
+- In-app update install and rollback were tested with unit tests, not by installing a real update. Rollback is possible only after an update, when the installer has kept the previous copy. When running from source code, updating is done with git.
+- Photo videos take still pictures only (JPG, PNG, WEBP; HEIC only if FFmpeg can read it). Live Photos and RAW files are not supported. Titles are placed as captions; there is no per-picture title design yet.
+- Restyle has no per-shot reframing that follows a face. The frame shape is a centred crop or a blurred fill.
+- The taskbar logo is set on the Edge app window by the small launcher that stays open while the window is open. Windows opened another way (for example from the browser) show the page icon only.

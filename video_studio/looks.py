@@ -50,6 +50,17 @@ TRANSITIONS = {
 }
 TRANSITION_SECONDS = {"smooth": 0.45, "punchy": 0.3, "minimal": 0.5, "cinematic": 0.7}
 
+
+def _library_transitions() -> None:
+    from video_studio import library
+
+    for key, fam in library.TRANSITION_FAMILIES.items():
+        TRANSITIONS.setdefault(key, list(fam["xfade"]))
+        TRANSITION_SECONDS.setdefault(key, float(fam["seconds"]))
+
+
+_library_transitions()
+
 PACING = {  # SAPI rate offset, Kokoro speed, scene padding seconds
     "relaxed": {"rate": -1, "speed": 0.95, "pad": 0.75},
     "balanced": {"rate": 0, "speed": 1.05, "pad": 0.5},

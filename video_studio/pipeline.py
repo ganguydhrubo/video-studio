@@ -13,6 +13,12 @@ from video_studio.looks import LOOKS, PACING, TRANSITION_SECONDS, TRANSITIONS
 from video_studio.project import Project
 from video_studio.util import ToolError, console, fmt_seconds, sha, write_json
 
+
+def _lut(key: str | None) -> str:
+    from video_studio import library
+
+    return library.grade_filter(key)
+
 LEAD = 0.25  # seconds between a scene appearing and its first spoken word
 
 
@@ -242,7 +248,7 @@ def produce(proj: Project) -> dict:
         "clips": [str(j[3]) for j in jobs], "durations": [j[2]["duration"] for j in jobs],
         "voice": [{"path": voices[sc["id"]]["polished"], "start": tl["voice_start"]} for sc, tl in zip(plan["scenes"], timeline) if sc["id"] in voices],
         "music": str(music_path) if music_path else "", "sfx": sfx_events,
-        "ass": str(ass) if ass else "", "srt": str(srt) if srt else "", "grade": LOOKS[look]["grade"],
+        "ass": str(ass) if ass else "", "srt": str(srt) if srt else "", "grade": ",".join(x for x in (LOOKS[look]["grade"], _lut(s.get("grade"))) if x),
         "words": len(words), "voice_engine": next(iter(voices.values()))["engine"] if voices else "none",
     }
     proj.write("manifest.json", manifest)
