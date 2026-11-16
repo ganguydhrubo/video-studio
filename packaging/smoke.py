@@ -1,0 +1,48 @@
+"""Check a frozen app without downloads, AI accounts or a browser."""
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+def main():
+    executable = str(Path(sys.argv[1]).resolve())
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with tempfile.TemporaryDirectory(prefix='vs-package-check-') as temporary:
+        with (Path(temporary) / 'server.log').open('w') as log:
+            proc = subprocess.Popen([executable, 'studio', '--port', '7894', '--no-browser', '--workspace', str(Path(temporary)/'projects')],
+                env={**os.environ, 'VIDEO_STUDIO_HOME':temporary}, stdout=log, stderr=subprocess.STDOUT)
+        try:
+            for _ in range(100):
+                try:
+                    with opener.open('http://127.0.0.1:7894/api/health',timeout=.5) as response:
+                        health=json.load(response)
+                    break
+                except OSError:
+                    if proc.poll() is not None:
+                        raise RuntimeError((Path(temporary)/'server.log').read_text())
+                    time.sleep(.1)
+            else:
+                raise RuntimeError('Packaged server did not start')
+            assert health['app']=='VideoStudio'
+            with opener.open('http://127.0.0.1:7894/') as response:
+                html=response.read().decode()
+            assert 'AI_ICONS=' in html and 'journey-art' in html and '__TOKEN__' not in html
+            with opener.open('http://127.0.0.1:7894/api/projects') as response:
+                assert json.load(response)['projects']==[]
+            try:
+                opener.open(urllib.request.Request('http://127.0.0.1:7894/api/pick-files',data=b'{}'))
+                raise AssertionError('Write without token accepted')
+            except urllib.error.HTTPError as error:
+                assert error.code==403
+            print('Packaged app passed:',health['version'])
+        finally:
+            proc.terminate()
+            proc.wait(timeout=15)
+
+if __name__=='__main__':
+    main()

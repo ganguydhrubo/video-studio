@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "video-studio"
-version = "1.3.0"
+version = "1.4.0"
 description = "Local-first AI video production studio for Windows: edit your footage or turn a script into a finished video."
 readme = "README.md"
 requires-python = ">=3.11"

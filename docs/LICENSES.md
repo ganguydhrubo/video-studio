@@ -1,5 +1,7 @@
 # Licence report
 
+Provider logos are from [LobeHub Icons](https://github.com/lobehub/lobe-icons), MIT. The licence is kept in `video_studio/assets/provider-icons/LICENSE` and bundled in the packaged app. Provider names and marks belong to their respective owners.
+
 Video Studio's own code is MIT. It **does not bundle** third-party tools except the Python runtime, NumPy and Pillow inside the frozen build. Everything else is detected or installed separately, with your approval, under its own licence.
 
 | Component | Use | Licence | Notes |

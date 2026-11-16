@@ -14,6 +14,8 @@ a = Analysis(
         (str(PKG / "studio_ui" / "index.html"), "studio_ui"),
         (str(PKG / "assets" / "fonts"), "assets/fonts"),
         (str(PKG / "assets" / "english_words.txt"), "assets"),
+        (str(PKG / "assets" / "provider-icons" / "LICENSE"), "licenses/provider-icons"),
+        (str(PKG / "assets" / "app-icon.ico"), "assets"),
     ],
     hiddenimports=["video_studio.editor", "video_studio.studio", "video_studio.engines.hyperframes", "video_studio.brain",
                    "video_studio.learn", "video_studio.setup", "video_studio.engines.sense", "video_studio.engines.style",
@@ -27,7 +29,13 @@ exe = EXE(
     exclude_binaries=True,
     name="video-studio",
     console=True,
-    icon=None,
+    icon=str(ROOT / "branding" / "app-icon.ico"),
     version=str(ROOT / "packaging" / "version_info.txt"),
 )
-coll = COLLECT(exe, a.binaries, a.datas, name="VideoStudio", strip=False, upx=False)
+gui = Analysis([str(ROOT / "packaging" / "gui_entry.py")], pathex=[str(ROOT)],
+               hiddenimports=["video_studio.launcher"], excludes=a.excludes, noarchive=False)
+gui_exe = EXE(PYZ(gui.pure), gui.scripts, [], exclude_binaries=True,
+              name="VideoStudio", console=False, icon=str(ROOT / "branding" / "app-icon.ico"),
+              version=str(ROOT / "packaging" / "version_info.txt"))
+coll = COLLECT(exe, gui_exe, a.binaries, a.datas, gui.binaries, gui.datas,
+               name="VideoStudio", strip=False, upx=False)

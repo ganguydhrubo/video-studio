@@ -17,6 +17,7 @@ import threading
 import time
 import uuid
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -29,12 +30,33 @@ from video_studio.util import FROZEN, app_data_dir, console, kill_tree, read_jso
 TOKEN = secrets.token_urlsafe(24)
 JOBS: dict[str, dict] = {}
 LOCK = threading.Lock()
+CHECK_LOCK = threading.Lock()
+CHECKS: dict[str, dict] = {}
+
+
+def background_check(key, check, fresh=False):
+    """Return immediately; concurrent page requests share a single cached probe."""
+    with CHECK_LOCK:
+        state = CHECKS.setdefault(key, {"data": {}, "running": False, "finished": 0})
+        if not state["running"] and (fresh or not state["finished"] or time.monotonic() - state["finished"] > 60):
+            state["running"] = True
+
+            def worker():
+                try:
+                    data = check()
+                except Exception as exc:
+                    data = {"error": str(exc)}
+                with CHECK_LOCK:
+                    state.update(data=data, running=False, finished=time.monotonic())
+
+            threading.Thread(target=worker, daemon=True).start()
+        return {**state["data"], "checking": state["running"]}
 STAGE_WORDS = {
     "Ingesting": "ingest", "Transcribing": "transcribe", "edit decisions": "plan", "Edit plan": "plan", "Cutting": "cut",
     "Cleaning up": "cut", "Tracking faces": "cut", "Finishing": "render", "Mixing": "render", "Quality checks": "validate",
     "QA score": "validate", "Exporting": "export", "Reading the script": "analyze", "Plan ready": "analyze",
     "Drawing storyboard": "storyboard", "Voiceover": "produce", "Scene ": "produce", "3D scene": "produce",
-    "Composing": "produce", "Assembling": "render",
+    "Composing": "produce", "Assembling": "render", "Watching the footage": "sense",
 }
 
 
@@ -52,6 +74,7 @@ class Job:
         self.stage = "starting"
         self.status = "running"
         self.started = time.time()
+        self.finished = None
         self.proc: subprocess.Popen | None = None
 
     def start(self) -> None:
@@ -76,6 +99,9 @@ class Job:
             else:
                 buf += ch
         code = self.proc.wait()
+        if buf.strip():
+            self._line(buf.strip())
+        self.finished = time.time()
         self.status = "done" if code == 0 else ("warning" if code == 2 else ("stopped" if self.status == "stopping" else "failed"))
         self._line(f"[exit {code}]")
 
@@ -94,7 +120,7 @@ class Job:
         with LOCK:
             state = read_json(self.root / "build" / "state.json", {}) or {}
             return {"id": self.id, "kind": self.kind, "title": self.title, "status": self.status, "stage": self.stage,
-                    "elapsed": round(time.time() - self.started), "lines": self.lines[since:], "count": len(self.lines),
+                    "elapsed": round((self.finished or time.time()) - self.started), "lines": self.lines[since:], "count": len(self.lines),
                     "root": str(self.root), "state": state}
 
 
@@ -152,12 +178,14 @@ FREE_NOTE = {"opencode": "Free models, no account needed", "ollama": "Free, runs
              "claude": "Needs a paid Claude plan", "codex": "Needs a ChatGPT plan"}
 
 
-def ai_status() -> dict:
+def _ai_status() -> dict:
     from video_studio import ai
 
     out = []
-    for p in ai.providers():
-        st = p.status()
+    providers = ai.providers()
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        statuses = list(pool.map(lambda p: p.status(), providers))
+    for p, st in zip(providers, statuses):
         models = list(getattr(p, "FREE", []))
         out.append({"key": p.key, "label": p.label, "installed": st.installed, "signed_in": st.signed_in,
                     "ready": st.signed_in and not st.problem, "account": st.account, "problem": st.problem,
@@ -165,6 +193,11 @@ def ai_status() -> dict:
                     "model": p.model(), "models": models, "needs_login": bool(p.login_cmd) or p.key in ("gemini", "qwen"),
                     "setup": None if st.installed else install_info(p.key)})
     return {"providers": out, "preferred": config.get("ai.provider"), "fallback": config.get("ai.fallback")}
+
+
+def ai_status(fresh=False) -> dict:
+    return {"providers": [], "preferred": config.get("ai.provider"), "fallback": config.get("ai.fallback"),
+            **background_check("ai", _ai_status, fresh)}
 
 
 def install_info(key: str) -> dict:
@@ -267,12 +300,19 @@ def list_projects() -> list[dict]:
     return out[:60]
 
 
-def doctor() -> dict:
+def _doctor() -> dict:
     from video_studio import detect
     from video_studio.engines import ml
 
-    tools = [t.to_dict() for t in detect.check_all(include_ai=True)]
+    checks = [detect.check_ffmpeg, detect.check_blender, detect.check_node,
+              detect.check_hyperframes, detect.check_tts, detect.check_whisper]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        tools = [t.to_dict() for t in pool.map(lambda check: check(), checks)]
     return {"tools": tools, "kokoro": ml.kokoro_ready(), "version": __version__}
+
+
+def doctor() -> dict:
+    return {"tools": [], "kokoro": False, "version": __version__, **background_check("doctor", _doctor)}
 
 
 # ----------------------------------------------------------------- handler
@@ -332,6 +372,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Security-Policy", "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'")
             self.end_headers()
             self.wfile.write(body)
+        elif url.path == "/favicon.ico":
+            self._file(resource_path("assets", "app-icon.ico"))
+        elif url.path == "/api/health":
+            self._json({"app": "VideoStudio", "version": __version__, "pid": os.getpid()})
         elif url.path == "/api/projects":
             self._json({"projects": list_projects(), "workspace": str(workspace())})
         elif url.path == "/api/project":
@@ -340,7 +384,7 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path == "/api/doctor":
             self._json(doctor())
         elif url.path == "/api/ai":
-            self._json(ai_status())
+            self._json(ai_status(q.get("fresh", ["0"])[0] == "1"))
         elif url.path == "/api/system":
             self._json(system_report(q.get("fresh", ["0"])[0] == "1"))
         elif url.path == "/api/styles":
@@ -420,6 +464,8 @@ class Handler(BaseHTTPRequestHandler):
                     left -= len(chunk)
             return self._json({"path": str(dest), "name": name, "size": dest.stat().st_size})
         body = self._body()
+        if url.path == "/api/pick-files":
+            return self._json(pick_local_files())
         if url.path == "/api/jobs":
             return self._json(start_job(body))
         if url.path.startswith("/api/jobs/") and url.path.endswith("/cancel"):
@@ -475,17 +521,30 @@ def _opts(o: dict) -> list[str]:
     return args
 
 
-def system_report(fresh: bool = False) -> dict:
+def _system_report() -> dict:
     from video_studio import setup
 
     cached = read_json(app_data_dir() / "system_report.json", None)
-    if fresh or not cached:
+    if not cached:
         s = setup.scan()
         cached = {"scan": s, "report": setup.report(s)}
         write_json(app_data_dir() / "system_report.json", cached)
     s = cached["scan"]
-    missing = (not s.get("python")) or not all((s.get("packages") or {}).values()) or not all((s.get("models") or {}).values())
+    missing = (not (s.get("tools", {}).get("ffmpeg", {}).get("ok"))) or (not s.get("python")) or not all((s.get("packages") or {}).values()) or not all((s.get("models") or {}).values())
     return {**cached, "missing": bool(missing)}
+
+
+def system_report(fresh: bool = False) -> dict:
+    if fresh:
+        from video_studio import setup
+        def rescan():
+            s = setup.scan()
+            write_json(app_data_dir() / "system_report.json", {"scan": s, "report": setup.report(s)})
+            return _system_report()
+        return background_check("system", rescan, fresh=True)
+    if (app_data_dir() / "system_report.json").is_file():
+        return {**_system_report(), "checking": False}
+    return background_check("system", _system_report)
 
 
 def _tool_job(kind: str, args: list[str], name: str) -> dict:
@@ -524,6 +583,34 @@ def start_job(body: dict) -> dict:
     JOBS[job.id] = job
     job.start()
     return {"job": job.id, "root": str(root)}
+
+
+def pick_local_files() -> dict:
+    """Native Windows picker: use original paths without uploading/copying footage."""
+    if os.name != "nt":
+        return {"error": "Native file selection is available on Windows."}
+    script = '''[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+Add-Type -AssemblyName System.Windows.Forms
+$dialog = New-Object System.Windows.Forms.OpenFileDialog
+$dialog.Title = 'Choose videos from this computer'
+$dialog.Filter = 'Video files|*.mp4;*.mov;*.mkv;*.webm;*.m4v;*.avi|All files|*.*'
+$dialog.Multiselect = $true
+if ($dialog.ShowDialog() -eq 'OK') { ConvertTo-Json -InputObject @($dialog.FileNames) -Compress }
+else { '[]' }
+$dialog.Dispose()'''
+    exe = Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+    try:
+        result = subprocess.run([str(exe), "-NoProfile", "-STA", "-Command", script], capture_output=True,
+                                text=True, encoding="utf-8", errors="replace", timeout=180, creationflags=0x08000000)
+        if result.returncode:
+            return {"error": "Could not open the native file picker."}
+        paths = json.loads(result.stdout.strip() or "[]")
+        if isinstance(paths, str):
+            paths = [paths]
+        return {"files": [{"path": str(Path(p)), "name": Path(p).name, "size": Path(p).stat().st_size}
+                          for p in paths if Path(p).is_file()]}
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return {"error": "File selection did not complete."}
 
 
 def _write_brief(root: Path, brief: str) -> Path:

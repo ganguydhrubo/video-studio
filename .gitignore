@@ -13,3 +13,9 @@ dist/
 *.mov
 *.mkv
 *.wav
+.env
+.env.*
+auth.json
+oauth_creds.json
+*.pfx
+*.pem

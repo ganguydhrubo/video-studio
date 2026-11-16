@@ -3,7 +3,7 @@
 param([switch]$Quiet, [switch]$RemoveData)
 $ErrorActionPreference = "Continue"
 $dest = Join-Path $env:LOCALAPPDATA "Programs\VideoStudio"
-Get-Process video-studio -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$dest*" } | Stop-Process -Force
+Get-Process video-studio,VideoStudio -ErrorAction SilentlyContinue | Where-Object { $_.Path -and (Split-Path $_.Path -Parent) -eq $dest } | Stop-Process -Force
 
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($userPath) {
@@ -11,6 +11,7 @@ if ($userPath) {
     [Environment]::SetEnvironmentVariable("Path", $clean, "User")
 }
 Remove-Item (Join-Path ([Environment]::GetFolderPath("Programs")) "Video Studio.lnk") -ErrorAction SilentlyContinue
+Remove-Item (Join-Path ([Environment]::GetFolderPath("Desktop")) "Video Studio.lnk") -ErrorAction SilentlyContinue
 Remove-Item "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\VideoStudio" -Recurse -ErrorAction SilentlyContinue
 if ($RemoveData) { Remove-Item (Join-Path $env:LOCALAPPDATA "VideoStudio") -Recurse -Force -ErrorAction SilentlyContinue }
 

@@ -768,6 +768,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     argv = list(sys.argv[1:] if argv is None else argv)
+    if not argv:
+        argv = ["studio"]
     # global options are accepted anywhere on the line (video-studio render --project x)
     for flag in ("--project", "-q", "--quiet"):
         if flag in argv[1:]:

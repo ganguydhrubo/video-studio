@@ -2,13 +2,17 @@
 #  1. isolated build venv (packaging\.venv) with PyInstaller + Pillow + NumPy - nothing installed system-wide
 #  2. PyInstaller one-folder build
 #  3. zip + IExpress (built into Windows) self-extracting setup that runs install.ps1 (per-user, no admin)
-param([switch]$SkipVenv)
+param([switch]$SkipVenv, [string]$BuildPython)
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 $pkg = $PSScriptRoot
 $version = (Select-String -Path "$root\video_studio\__init__.py" -Pattern '__version__ = "(.+)"').Matches[0].Groups[1].Value
 $venv = Join-Path $pkg ".venv"
 $py = Join-Path $venv "Scripts\python.exe"
+if ($BuildPython) {
+    $py = (Resolve-Path -LiteralPath $BuildPython).Path
+    $SkipVenv = $true
+}
 
 if (-not $SkipVenv -or -not (Test-Path $py)) {
     if (-not (Test-Path $py)) { python -m venv $venv }
@@ -28,7 +32,14 @@ $stage = Join-Path $pkg "stage"
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory $stage | Out-Null
 Compress-Archive -Path "$dist\VideoStudio\*" -DestinationPath "$stage\VideoStudio.zip" -CompressionLevel Optimal
-Copy-Item "$pkg\install.ps1", "$pkg\uninstall.ps1" $stage
+Copy-Item "$pkg\install.ps1", "$pkg\uninstall.ps1", "$pkg\install.cmd" $stage
+
+# IExpress is a legacy tool: keep its source and output paths short, even if
+# the project is under a long workspace path.
+$iexpressStage = Join-Path ([IO.Path]::GetTempPath()) ("vs-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
+New-Item -ItemType Directory -Path $iexpressStage | Out-Null
+Copy-Item "$stage\*" $iexpressStage
+$iexpressSetup = Join-Path $iexpressStage "VideoStudio-Setup-$version.exe"
 
 $setup = Join-Path $dist "VideoStudio-Setup-$version.exe"
 $sed = @"
@@ -47,30 +58,40 @@ RebootMode=N
 InstallPrompt=
 DisplayLicense=
 FinishMessage=
-TargetName=$setup
+TargetName=$iexpressSetup
 FriendlyName=Video Studio $version Setup
-AppLaunched=powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1
+AppLaunched=install.cmd
 PostInstallCmd=<None>
-AdminQuietInstCmd=powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Quiet
-UserQuietInstCmd=powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Quiet
+AdminQuietInstCmd=install.cmd -Quiet
+UserQuietInstCmd=install.cmd -Quiet
 SourceFiles=SourceFiles
 [Strings]
 FILE0="VideoStudio.zip"
 FILE1="install.ps1"
 FILE2="uninstall.ps1"
+FILE3="install.cmd"
 [SourceFiles]
-SourceFiles0=$stage\
+SourceFiles0=$iexpressStage\
 [SourceFiles0]
 %FILE0%=
 %FILE1%=
 %FILE2%=
+%FILE3%=
 "@
-$sedPath = Join-Path $pkg "setup.sed"
-Set-Content -Path $sedPath -Value $sed -Encoding ASCII
+$sedPath = Join-Path $iexpressStage "setup.sed"
+[IO.File]::WriteAllText($sedPath, (($sed -replace '\r?\n', "`r`n") + "`r`n"), [Text.Encoding]::ASCII)
 Remove-Item $setup -ErrorAction SilentlyContinue
-Start-Process -Wait -NoNewWindow "$env:WINDIR\System32\iexpress.exe" -ArgumentList "/N", "/Q", $sedPath
-if (-not (Test-Path $setup)) { throw "IExpress did not produce $setup" }
+$buildPath = $env:Path
+try {
+    $env:Path = "$env:WINDIR\System32;$env:WINDIR"
+    $iexpress = Start-Process -Wait -PassThru -WindowStyle Hidden "$env:WINDIR\System32\iexpress.exe" -ArgumentList "/N", "/Q", $sedPath -WorkingDirectory $iexpressStage
+} finally { $env:Path = $buildPath }
+if ($iexpress.ExitCode -ne 0 -or -not (Test-Path $iexpressSetup)) { throw "IExpress failed ($($iexpress.ExitCode)); build files: $iexpressStage" }
+Copy-Item -LiteralPath $iexpressSetup -Destination $setup -Force
 Copy-Item "$stage\VideoStudio.zip" (Join-Path $dist "VideoStudio-$version-portable.zip") -Force
+Copy-Item -LiteralPath $setup -Destination (Join-Path $dist 'VideoStudio-Setup.exe') -Force
 $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
-"$hash  $(Split-Path $setup -Leaf)" | Set-Content (Join-Path $dist "SHA256SUMS.txt")
+@($setup, (Join-Path $dist 'VideoStudio-Setup.exe'), (Join-Path $dist "VideoStudio-$version-portable.zip")) | ForEach-Object {
+    "$((Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLower())  $(Split-Path $_ -Leaf)"
+} | Set-Content (Join-Path $dist "SHA256SUMS.txt")
 Write-Host "Built $setup ($([math]::Round((Get-Item $setup).Length / 1MB, 1)) MB) sha256 $hash"

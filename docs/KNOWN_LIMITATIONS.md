@@ -43,6 +43,10 @@
 
 ## Recovery
 
+- Open the **Video Studio** desktop/Start-menu shortcut or `VideoStudio.exe`, which keeps the server independent of a console window. The explicit CLI command `video-studio studio` still runs in the foreground: closing that terminal stops that instance.
+- If no browser opens, inspect `%LOCALAPPDATA%\VideoStudio\logs\startup.log` and `launcher-error.log`. Installer errors go to `install.log` in the same folder.
+- Portable users must extract the entire folder, including `_internal`. A bare executable copied out of that folder cannot run.
+
 | Problem | Fix |
 |---|---|
 | A stage failed | Read the hint printed with the error, then `video-studio resume`. Finished work is reused. |
