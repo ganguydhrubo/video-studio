@@ -16,13 +16,15 @@ from dataclasses import asdict, dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
-from video_studio import config
+from video_studio import config, toolbox
 from video_studio.util import IS_WINDOWS, FROZEN, ToolError, console, run, which
 
 HYPERFRAMES_VERSION = "0.9.52"
 HOME = Path.home()
 LOCAL = Path(os.environ.get("LOCALAPPDATA", HOME / "AppData" / "Local"))
 ROAMING = Path(os.environ.get("APPDATA", HOME / "AppData" / "Roaming"))
+
+toolbox.activate()  # portable tools (if any) become visible to this process and its children only
 
 
 @dataclass
@@ -88,7 +90,7 @@ def ffmpeg_path() -> Path | None:
     override = config.get("tools.ffmpeg")
     if override and Path(override).is_file():
         return Path(override)
-    return which("ffmpeg", _ffmpeg_dirs())
+    return toolbox.ffmpeg() or which("ffmpeg", _ffmpeg_dirs())
 
 
 def ffprobe_path() -> Path | None:
@@ -107,6 +109,9 @@ def blender_path() -> Path | None:
     override = config.get("tools.blender")
     if override and Path(override).is_file():
         return Path(override)
+    portable = toolbox.blender()
+    if portable:
+        return portable
     on_path = which("blender")
     if on_path:
         return on_path
@@ -120,7 +125,7 @@ def node_path() -> Path | None:
     override = config.get("tools.node")
     if override and Path(override).is_file():
         return Path(override)
-    return which("node", [Path("C:/Program Files/nodejs")])
+    return toolbox.node() or which("node", [Path("C:/Program Files/nodejs")])
 
 
 def npx_path() -> Path | None:
@@ -134,14 +139,33 @@ def npx_path() -> Path | None:
 
 
 def system_python() -> Path | None:
-    """A real Python interpreter for optional helpers (e.g. faster-whisper)."""
+    """A real Python interpreter for optional helpers (e.g. faster-whisper).
+
+    Takebloom's private Python (made by setup, with every helper installed) always comes first."""
+    private = toolbox.private_python()
+    if private:
+        return private
     if not FROZEN:
         return Path(sys.executable)
     for name in ("python", "py"):
         p = which(name)
         if p and "WindowsApps" not in str(p):
             return p
-    return None
+    # a Python that winget installed a moment ago is not on this process's PATH yet
+    hits = sorted(glob.glob(str(LOCAL / "Programs" / "Python" / "Python3*" / "python.exe")), reverse=True)
+    return Path(hits[0]) if hits else None
+
+
+def source(path: str | Path | None) -> str:
+    """Where a tool came from: 'portable' (Takebloom's own tools folder), 'custom' (set in config) or 'system'."""
+    if not path:
+        return ""
+    if toolbox.is_portable(path):
+        return "portable"
+    overrides = [config.get(f"tools.{k}") for k in ("ffmpeg", "ffprobe", "blender", "node", "piper")]
+    if any(o and Path(o) == Path(path) for o in overrides):
+        return "custom"
+    return "system"
 
 
 def chrome_path() -> Path | None:
@@ -174,13 +198,14 @@ def check_ffmpeg() -> ToolInfo:
         info.hint = "video-studio install ffmpeg"
         return info
     info.found, info.path = True, str(path)
+    info.extra["source"] = source(path)
     out = _probe([str(path), "-hide_banner", "-version"])
     info.version = (re.search(r"ffmpeg version (\S+)", out) or [None, "?"])[1]
     filters = _probe([str(path), "-hide_banner", "-filters"])
     needed = ["xfade", "subtitles", "loudnorm", "sidechaincompress", "blackdetect", "ebur128"]
     missing = [f for f in needed if not re.search(rf"\s{f}\s", filters)]
     encoders = _probe([str(path), "-hide_banner", "-encoders"])
-    info.extra = {"ffprobe": str(probe), "libx264": "libx264" in encoders, "missing_filters": missing,
+    info.extra = {**info.extra, "ffprobe": str(probe), "libx264": "libx264" in encoders, "missing_filters": missing,
                   "gpl_build": "--enable-gpl" in out}
     ver = _version_tuple(info.version)
     if ver and ver < (6, 0):
@@ -202,6 +227,7 @@ def check_blender() -> ToolInfo:
         info.hint = "video-studio install blender"
         return info
     info.found, info.path = True, str(path)
+    info.extra["source"] = source(path)
     out = _probe([str(path), "--factory-startup", "--background", "--version"], timeout=90)
     info.version = (re.search(r"Blender (\d+\.\d+(?:\.\d+)?)", out) or [None, "?"])[1]
     ver = _version_tuple(info.version)
@@ -223,6 +249,7 @@ def check_node() -> ToolInfo:
         info.hint = "video-studio install node"
         return info
     info.found, info.path = True, str(path)
+    info.extra["source"] = source(path)
     info.version = _probe([str(path), "--version"]).strip()
     if _version_tuple(info.version) < (22, 0):
         info.problem = f"Node {info.version} < 22 (HyperFrames needs 22+)"
@@ -244,6 +271,7 @@ def check_hyperframes() -> ToolInfo:
         info.found = info.ok = True
         info.version = HYPERFRAMES_VERSION
         info.path = f"npx hyperframes@{HYPERFRAMES_VERSION}"
+        info.extra["source"] = source(npx)
         if not chrome_path():
             info.ok = False
             info.problem = "Chrome/Edge not found for rendering"
@@ -285,6 +313,7 @@ def check_whisper() -> ToolInfo:
     if m:
         info.found = info.ok = True
         info.version, info.path = m.group(1), str(py)
+        info.extra["source"] = "portable" if toolbox.is_portable(py) else "system"
     else:
         info.problem = "faster-whisper not installed"
         info.hint = "video-studio install whisper"
@@ -322,24 +351,32 @@ def check_all(include_ai: bool = True) -> list[ToolInfo]:
 
 # ------------------------------------------------------------------ installs
 
+# Portable tools come from `toolbox` (pinned download + SHA-256, no admin). winget is only the fallback, and is always
+# run with the agreement flags so it never waits for a keypress (the Studio runs installs with no keyboard attached).
+_WG = toolbox.WINGET_FLAGS
+PORTABLE = {"ffmpeg", "blender", "node", "ollama"}
 INSTALL_RECIPES: dict[str, dict] = {
-    "ffmpeg": {"desc": "FFmpeg full build (gyan.dev) via winget", "cmd": ["winget", "install", "--id", "Gyan.FFmpeg", "-e", "--source", "winget"], "license": "GPL-3.0 build"},
-    "blender": {"desc": "Blender (Blender Foundation) via winget", "cmd": ["winget", "install", "--id", "BlenderFoundation.Blender", "-e", "--source", "winget"], "license": "GPL-3.0-or-later"},
-    "node": {"desc": "Node.js LTS via winget", "cmd": ["winget", "install", "--id", "OpenJS.NodeJS.LTS", "-e", "--source", "winget"], "license": "MIT"},
+    "ffmpeg": {"desc": toolbox.PACKAGES["ffmpeg"].label + " - portable copy in Takebloom's tools folder", "cmd": ["winget", "install", "--id", "Gyan.FFmpeg", *_WG], "license": "GPL-3.0"},
+    "blender": {"desc": toolbox.PACKAGES["blender"].label + " - portable copy in Takebloom's tools folder", "cmd": ["winget", "install", "--id", "BlenderFoundation.Blender", *_WG], "license": "GPL-3.0-or-later"},
+    "node": {"desc": toolbox.PACKAGES["node"].label + " - portable copy in Takebloom's tools folder", "cmd": ["winget", "install", "--id", "OpenJS.NodeJS.LTS", *_WG], "license": "MIT"},
     "hyperframes": {"desc": f"HyperFrames {HYPERFRAMES_VERSION} into the npm cache, plus its browser", "cmd": ["{npx}", "-y", f"hyperframes@{HYPERFRAMES_VERSION}", "--version"], "license": "Apache-2.0"},
-    "whisper": {"desc": "faster-whisper for your user Python (pip --user)", "cmd": ["{python}", "-m", "pip", "install", "--user", "faster-whisper"], "license": "MIT"},
+    "python": {"desc": f"Private Python {toolbox.PY_VERSION} (via uv) with the offline AI helpers, only for Takebloom", "cmd": [], "license": "PSF (Python), MIT/Apache-2.0 (uv)"},
+    "whisper": {"desc": "faster-whisper in Takebloom's private Python", "cmd": [], "license": "MIT"},
     "claude": {"desc": "Claude Code CLI (npm, official)", "cmd": ["{npm}", "install", "-g", "@anthropic-ai/claude-code"], "license": "proprietary CLI, your Anthropic account"},
     "codex": {"desc": "OpenAI Codex CLI (npm, official)", "cmd": ["{npm}", "install", "-g", "@openai/codex"], "license": "Apache-2.0, your OpenAI account"},
     "gemini": {"desc": "Google Gemini CLI (npm, official)", "cmd": ["{npm}", "install", "-g", "@google/gemini-cli"], "license": "Apache-2.0, your Google account"},
     "qwen": {"desc": "Qwen Code CLI (npm, official)", "cmd": ["{npm}", "install", "-g", "@qwen-code/qwen-code"], "license": "Apache-2.0"},
     "opencode": {"desc": "OpenCode CLI (npm, official) - free models, no account", "cmd": ["{npm}", "install", "-g", "opencode-ai"], "license": "MIT"},
-    "ollama": {"desc": "Ollama local model runner via winget", "cmd": ["winget", "install", "--id", "Ollama.Ollama", "-e", "--source", "winget"], "license": "MIT"},
+    "ollama": {"desc": toolbox.PACKAGES["ollama"].label + f" plus the free {toolbox.OLLAMA_MODEL} model (Apache-2.0, ~1.4 GB)", "cmd": ["winget", "install", "--id", "Ollama.Ollama", *_WG], "license": "MIT"},
 }
 
 
 def install_plan(tool: str) -> list[str]:
+    """The command for npm/winget recipes. Portable tools describe their download instead (see install_summary)."""
     if tool not in INSTALL_RECIPES:
         raise ToolError(f"No install recipe for '{tool}'.", "Known: " + ", ".join(INSTALL_RECIPES))
+    if tool in PORTABLE or tool in ("python", "whisper"):
+        return []
     cmd = []
     for part in INSTALL_RECIPES[tool]["cmd"]:
         if part == "{npx}":
@@ -352,43 +389,56 @@ def install_plan(tool: str) -> list[str]:
             if not npm or not Path(npm).exists():
                 raise ToolError("npm is needed first.", "video-studio install node")
             part = str(npm)
-        elif part == "{python}":
-            py = system_python()
-            if not py:
-                raise ToolError("Python is needed first.", "Install Python 3.10+ from python.org")
-            part = str(py)
         cmd.append(part)
     return cmd
+
+
+def install_summary(tool: str) -> str:
+    """One line saying exactly what an install does, shown before the user approves it."""
+    if tool in PORTABLE:
+        return toolbox.describe(tool)["command"]
+    if tool in ("python", "whisper"):
+        return f"Download uv {toolbox.PACKAGES['uv'].version} (SHA-256 checked), then `uv python install {toolbox.PY_VERSION}` "                f"and the helpers into {toolbox.venv_dir()}"
+    return " ".join(install_plan(tool))
+
+
+CHECKS = {"ffmpeg": lambda: check_ffmpeg(), "blender": lambda: check_blender(), "node": lambda: check_node(),
+          "hyperframes": lambda: check_hyperframes(), "whisper": lambda: check_whisper(), "python": lambda: check_whisper()}
 
 
 def install(tool: str, assume_yes: bool) -> bool:
     from video_studio.util import confirm, run_interactive
 
-    cmd = install_plan(tool)
+    if tool not in INSTALL_RECIPES:
+        raise ToolError(f"No install recipe for '{tool}'.", "Known: " + ", ".join(INSTALL_RECIPES))
     recipe = INSTALL_RECIPES[tool]
-    console.info(f"Install plan for {tool}: {recipe['desc']}  (license: {recipe['license']})")
-    console.info("  command: " + " ".join(cmd))
+    console.info(f"Install plan for {tool}: {recipe['desc']}  (licence: {recipe['license']})")
+    console.info("  " + install_summary(tool))
     if not confirm("Run this install now?", assume_yes):
         console.warn("Skipped. Nothing was changed.")
         return False
-    code = run_interactive(cmd)
-    if tool == "hyperframes" and code == 0:
-        run_interactive([str(npx_path()), "-y", f"hyperframes@{HYPERFRAMES_VERSION}", "browser", "ensure"])
-    check_fn = {"ffmpeg": check_ffmpeg, "blender": check_blender, "node": check_node,
-                "hyperframes": check_hyperframes, "whisper": check_whisper}.get(tool)
+    if tool in PORTABLE or tool in ("python", "whisper", "hyperframes"):
+        from video_studio import setup
+
+        if tool == "hyperframes" and not node_path():
+            setup.install_item({"kind": "portable", "key": "node"})
+        ok = setup.install_item({"kind": "portable" if tool in PORTABLE else tool, "key": tool})
+        if tool not in CHECKS:
+            return ok
+        info = CHECKS[tool]()
+        if info.ok:
+            console.ok(f"{info.name} {info.version} verified at {info.path}")
+            return True
+        console.error(f"{info.name} is still not working: {info.problem}.")
+        console.info(RECOVERY.get(tool, "Press Install again, or run `video-studio doctor`."))
+        return False
+    code = run_interactive(install_plan(tool))
     if code != 0:
         console.error(f"Installer exited with code {code}.")
         console.info(RECOVERY.get(tool, "Re-run with a new terminal, or install manually from the official site."))
         return False
-    if check_fn:
-        sapi_voices.cache_clear()
-        info = check_fn()
-        if info.ok:
-            console.ok(f"{info.name} {info.version} verified at {info.path}")
-            return True
-        console.warn(f"Installed, but verification failed: {info.problem}. Open a new terminal (PATH refresh) and run `video-studio doctor`.")
-        return False
-    console.ok("Install command finished. Open a new terminal, then run `video-studio ai status`.")
+    toolbox.refresh_path_from_registry()
+    console.ok("Install command finished. Run `video-studio ai status` to check it.")
     return True
 
 
@@ -397,5 +447,6 @@ RECOVERY = {
     "blender": "Manual: install from https://www.blender.org/download/ then `video-studio config set tools.blender \"C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe\"`.",
     "node": "Manual: install Node.js 22+ LTS from https://nodejs.org, then open a new terminal.",
     "hyperframes": f"Check network access to registry.npmjs.org, then: npx -y hyperframes@{HYPERFRAMES_VERSION} doctor",
-    "whisper": "Manual: py -m pip install --user faster-whisper (needs internet once for the model download).",
+    "whisper": "Press Setup again (it continues where it stopped), or: py -m pip install --user faster-whisper.",
+    "python": "Press Setup again (it continues where it stopped). Needs internet to github.com and pypi.org.",
 }

@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import json
+import os
 import platform
 import shutil
 import subprocess
-import urllib.request
+import time
 from pathlib import Path
 
-from video_studio import detect, resources
+from video_studio import detect, resources, toolbox
 from video_studio.engines import ml
-from video_studio.util import IS_WINDOWS, console, confirm, run, run_interactive, write_json, app_data_dir
+from video_studio.util import IS_WINDOWS, console, confirm, run, write_json, app_data_dir
 
 MODULES = ("faster_whisper", "kokoro_onnx", "soundfile", "noisereduce", "scipy", "cv2", "mediapipe", "librosa")
 PIP_PACKAGES = ["faster-whisper", "kokoro-onnx", "soundfile", "noisereduce", "scipy", "opencv-python", "mediapipe", "librosa"]
@@ -23,6 +24,8 @@ MODELS = {
     "selfie_multiclass.tflite": ("https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite",
                                  "mediapipe", "16 MB", "person cut-out for words behind you (Apache-2.0)"),
 }
+# Pinned SHA-256 for fixed-release model files (checked on download). The selfie model URL is 'latest', so not pinned.
+MODEL_SHA: dict[str, str] = {}
 
 
 def _nvidia() -> dict | None:
@@ -146,74 +149,202 @@ def print_report(s: dict, r: dict) -> None:
         console.info("  Tip: " + line)
 
 
-def missing(s: dict) -> list[dict]:
-    items = []
-    for key in ("ffmpeg",):
-        if not s["tools"].get(key, {}).get("ok"):
-            items.append({"kind": "tool", "key": key, "desc": detect.INSTALL_RECIPES[key]["desc"], "size": "~120 MB"})
-    if not s["python"]:
-        items.append({"kind": "tool", "key": "python", "desc": "Python 3.12 (python.org, via winget) for the AI helpers", "size": "~30 MB"})
-    else:
-        need = [p for p, mod in zip(PIP_PACKAGES, MODULES)
-                if not s["packages"].get(mod)]
-        if need:
-            items.append({"kind": "pip", "key": "pip", "packages": need, "desc": "Offline AI helpers: " + ", ".join(need), "size": "~600 MB"})
+# Sizes are what each step downloads (measured on the 1.9.0 fresh-folder test); licences are shown before anything runs.
+PYTHON_SIZE = 650_000_000      # uv + Python 3.12 + the helpers above
+HYPERFRAMES_SIZE = 260_000_000  # npm package + its headless browser
+WHISPER_SIZE = 800_000_000
+
+
+def _mb(n: int) -> str:
+    return toolbox.fmt_mb(n)
+
+
+def _model_size(text: str) -> int:
+    try:
+        return int(float(text.split()[0]) * 1_000_000)
+    except (ValueError, IndexError):
+        return 0
+
+
+def plan(s: dict, skip: tuple[str, ...] = (), extra: tuple[str, ...] = ()) -> list[dict]:
+    """Everything this PC still needs, in install order. Each item: what, size (bytes), licence, how."""
+    items: list[dict] = []
+    tools = s.get("tools", {})
+    ok = lambda key: tools.get(key, {}).get("ok")  # noqa: E731
+    P = toolbox.PACKAGES
+
+    def portable(key: str, desc: str) -> None:
+        items.append({"kind": "portable", "key": key, "desc": desc, "size": P[key].size, "license": P[key].licence})
+
+    if not ok("ffmpeg"):
+        portable("ffmpeg", f"{P['ffmpeg'].label}: cutting, sound, captions, every export")
+    private = toolbox.private_python()
+    need = [p for p, mod in zip(PIP_PACKAGES, MODULES) if not (s.get("packages") or {}).get(mod)]
+    if not private and (not s.get("python") or need):
+        items.append({"kind": "python", "key": "python", "packages": list(PIP_PACKAGES), "size": PYTHON_SIZE,
+                      "license": "PSF, MIT, Apache-2.0, BSD, ISC",
+                      "desc": f"Private Python {toolbox.PY_VERSION} with the offline AI helpers (speech, voice, faces, beats)"})
+    elif need:
+        items.append({"kind": "pip", "key": "pip", "packages": need, "size": 60_000_000 * len(need),
+                      "license": "MIT, Apache-2.0, BSD, ISC", "desc": "Offline AI helpers: " + ", ".join(need)})
     for name, (url, sub, size, desc) in MODELS.items():
-        if not s["models"].get(name):
-            items.append({"kind": "model", "key": name, "url": url, "dest": str(ml.models_dir() / sub / name), "desc": desc, "size": size})
-    items.append({"kind": "whisper", "key": "whisper-model", "desc": "Speech model download (first use, cached)", "size": "~800 MB",
-                  "model": "large-v3-turbo" if s["ram_gb"] >= 12 else "small", "optional_check": True})
-    return items
+        if not (s.get("models") or {}).get(name):
+            items.append({"kind": "model", "key": name, "url": url, "dest": str(ml.models_dir() / sub / name),
+                          "desc": desc, "size": _model_size(size), "license": "Apache-2.0"})
+    if not ok("node"):
+        portable("node", f"{P['node'].label}: runs HyperFrames")
+    if not ok("hyperframes"):
+        items.append({"kind": "hyperframes", "key": "hyperframes", "size": HYPERFRAMES_SIZE, "license": "Apache-2.0",
+                      "desc": f"HyperFrames {detect.HYPERFRAMES_VERSION} and its browser: timeline, motion titles"})
+    if not ok("blender"):
+        portable("blender", f"{P['blender'].label}: 3D titles and objects")
+    if not whisper_cached():
+        items.append({"kind": "whisper", "key": "whisper-model", "size": WHISPER_SIZE, "license": "MIT",
+                      "desc": "Speech model (understands what you say, offline)",
+                      "model": "large-v3-turbo" if s.get("ram_gb", 0) >= 12 else "small"})
+    if "ollama" in extra and not (toolbox.ollama() or shutil.which("ollama")):
+        items.append({"kind": "portable", "key": "ollama", "size": P["ollama"].size + 1_400_000_000,
+                      "license": "MIT, Apache-2.0",
+                      "desc": f"{P['ollama'].label} + the free {toolbox.OLLAMA_MODEL} model: AI editor with no internet"})
+    return [i for i in items if i["key"] not in skip]
+
+
+def whisper_cached() -> bool:
+    """A usable speech model is already on disk (large-v3-turbo or small, or larger)."""
+    hub = Path(os.environ.get("HF_HOME") or (Path.home() / ".cache" / "huggingface")) / "hub"
+    return any((hub / f).exists() for f in ("models--mobiuslabsgmbh--faster-whisper-large-v3-turbo",
+                                             "models--Systran--faster-whisper-large-v3",
+                                             "models--Systran--faster-whisper-medium",
+                                             "models--Systran--faster-whisper-small"))
+
+
+def missing(s: dict) -> list[dict]:
+    """Kept for older callers: the default plan."""
+    return plan(s)
+
+
+def plan_summary(items: list[dict]) -> dict:
+    return {"items": [{k: it.get(k) for k in ("key", "desc", "size", "license")} for it in items],
+            "total": sum(it.get("size", 0) for it in items), "total_text": _mb(sum(it.get("size", 0) for it in items)),
+            "folder": str(toolbox.tools_dir())}
+
+
+def print_plan(items: list[dict]) -> None:
+    total = sum(i.get("size", 0) for i in items)
+    console.step(f"Setup will download and install (free, about {_mb(total)} in total, no admin needed):")
+    for n, it in enumerate(items, 1):
+        console.info(f"  {n}. {it['desc']} - {_mb(it.get('size', 0))}, licence {it.get('license', '-')}")
+    console.info(f"  Tools go into {toolbox.tools_dir()} (Takebloom's own folder). "
+                 "Your system settings and PATH are not changed.")
+
+
+def install_item(it: dict) -> bool:
+    """Install one plan item. Never raises: a failure is explained and the rest of the plan carries on."""
+    kind, key = it["kind"], it["key"]
+    try:
+        if kind == "portable":
+            if key == "ollama":
+                return toolbox.install_ollama()
+            if toolbox.install_with_fallback(key):
+                return True
+            return bool({"ffmpeg": detect.ffmpeg_path, "blender": detect.blender_path, "node": detect.node_path}[key]())
+        if kind in ("python", "whisper") and key in ("python", "whisper"):
+            pkgs = it.get("packages") or (PIP_PACKAGES if key == "python" else ["faster-whisper"])
+            mods = MODULES if key == "python" else ("faster_whisper",)
+            return toolbox.install_python(pkgs, mods) is not None
+        if kind == "pip":
+            py = detect.system_python()
+            if not py:
+                return toolbox.install_python(PIP_PACKAGES, MODULES) is not None
+            console.step("Installing offline AI helpers: " + ", ".join(it["packages"]))
+            return toolbox.pip_install(py, it["packages"]) == 0
+        if kind == "hyperframes":
+            return toolbox.install_hyperframes(detect.HYPERFRAMES_VERSION)
+        if kind == "model":
+            dest = Path(it["dest"])
+            console.step(f"Downloading {dest.name} ({_mb(it.get('size', 0))})")
+            toolbox.download([it["url"]], dest, MODEL_SHA.get(dest.name, ""), label=dest.name)
+            return True
+        if kind == "whisper":
+            py = detect.system_python()
+            if not py or not ml.available("faster_whisper"):
+                console.warn("The speech model needs the AI helpers first; it was skipped.")
+                return False
+            console.step(f"Fetching the speech model '{it['model']}' (one time)")
+            code = toolbox.stream([py, "-E", "-P", "-c", "from faster_whisper import WhisperModel; "
+                                   f"WhisperModel('{it['model']}', device='cpu', compute_type='int8'); "
+                                   "print('speech model ready')"], timeout=3600)
+            return code == 0
+    except toolbox.ToolboxError as exc:
+        console.error(str(exc))
+        if exc.hint:
+            console.info("  " + exc.hint)
+        return False
+    except Exception as exc:  # noqa: BLE001 - one broken step must not stop the rest of setup
+        console.error(f"{it.get('desc', key)} failed: {exc}")
+        return False
+    return False
+
+
+def verify(s: dict) -> list[tuple[str, bool, str]]:
+    """What works now and where it came from (the scan ran each tool once)."""
+    rows = []
+    for key, name in (("ffmpeg", "FFmpeg"), ("node", "Node.js"), ("hyperframes", "HyperFrames"), ("blender", "Blender")):
+        t = s["tools"].get(key, {})
+        src = (t.get("extra") or {}).get("source", "")
+        where = t.get("path") if t.get("found") else t.get("problem")
+        rows.append((name, bool(t.get("ok")), f"{t.get('version') or '-'} ({src or 'not found'}) {where or ''}".strip()))
+    py = s.get("python", "")
+    pk = s.get("packages") or {}
+    good = [m for m, v in pk.items() if v]
+    rows.append(("Python helpers", bool(pk.get("faster_whisper")),
+                 f"{len(good)} of {len(pk)} load ({'portable' if toolbox.is_portable(py) else 'system'}) {py}"))
+    return rows
 
 
 def install_all(items: list[dict], assume_yes: bool) -> bool:
     if not items:
         return True
-    console.step("To unlock everything, setup will install (free, open-source, about 1.5 GB in total):")
-    for it in items:
-        console.info(f"  - {it['desc']} ({it['size']})")
+    print_plan(items)
     if not confirm("Install all of this now?", assume_yes):
         console.info("Nothing was installed. Run `video-studio setup` any time.")
         return False
-    py = detect.system_python()
-    if any(i["key"] == "python" for i in items):
-        run_interactive(["winget", "install", "--id", "Python.Python.3.12", "-e", "--source", "winget"])
-        py = detect.system_python()
-    for it in items:
-        if it["kind"] == "tool":
-            if it["key"] == "ffmpeg":
-                detect.install("ffmpeg", True)
-        elif it["kind"] == "pip" and py:
-            console.step("Installing offline AI helpers (pip, your user account only)")
-            run_interactive([str(py), "-m", "pip", "install", "--user", "--upgrade", *it["packages"]])
-        elif it["kind"] == "model":
-            dest = Path(it["dest"])
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            console.step(f"Downloading {dest.name} ({it['size']})")
-            try:
-                tmp = dest.with_suffix(dest.suffix + ".part")
-                urllib.request.urlretrieve(it["url"], tmp)
-                tmp.replace(dest)
-            except OSError as exc:
-                console.warn(f"Download failed ({exc}); you can re-run setup later.")
-        elif it["kind"] == "whisper" and py:
-            if not ml.available("faster_whisper"):
-                continue
-            console.step(f"Fetching the speech model '{it['model']}' (one time)")
-            run([str(py), "-E", "-P", "-c", f"from faster_whisper import WhisperModel; WhisperModel('{it['model']}', device='cpu', compute_type='int8')"],
-                check=False, timeout=3600)
-    return True
+    started, failed = time.time(), []
+    for n, it in enumerate(items, 1):
+        console.step(f"Step {n} of {len(items)}: {it['desc']}")
+        t0 = time.time()
+        if install_item(it):
+            console.ok(f"Step {n} done in {time.time() - t0:.0f} s")
+        else:
+            failed.append(it["desc"])
+    console.info(f"Setup steps finished in {(time.time() - started) / 60:.1f} minutes.")
+    for d in failed:
+        console.warn(f"Not finished: {d}. Press Setup again to retry (finished parts are kept).")
+    return not failed
 
 
-def run_setup(assume_yes: bool = False, report_only: bool = False) -> int:
+def print_tools(s: dict) -> None:
+    console.step("Tools and where they came from")
+    for name, good, text in verify(s):
+        (console.ok if good else console.warn)(f"{name}: {text}")
+
+
+def run_setup(assume_yes: bool = False, report_only: bool = False, skip: tuple[str, ...] = (),
+              extra: tuple[str, ...] = ()) -> int:
     console.step("Scanning this computer")
     s = scan()
+    ok = True
     if not report_only:
-        todo = [i for i in missing(s) if not (i.get("optional_check") and ml.best_whisper_model("auto") in ("large-v3-turbo", "small"))]
+        todo = plan(s, tuple(skip), tuple(extra))
         if todo:
-            install_all(todo, assume_yes)
+            ok = install_all(todo, assume_yes)
+            toolbox.activate(force=True)
+            console.step("Checking every tool again (no restart needed)")
             s = scan()
+        else:
+            console.ok("Everything is already installed.")
     r = report(s)
     print_report(s, r)
+    print_tools(s)
     write_json(app_data_dir() / "system_report.json", {"scan": s, "report": r})
-    return 0
+    return 0 if ok else 2
