@@ -187,6 +187,11 @@ def grade_like(img_u8):
 yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
 VIGN = (1 - 0.26 * np.clip(((xx - W / 2) / (W * 0.62)) ** 2 + ((yy - H * 0.45) / (H * 0.66)) ** 2, 0, 1))[..., None]
 GRAIN = [cv2.resize(RNG.normal(0, 1, (H // 2, W // 2)).astype(np.float32), (W, H))[..., None] for _ in range(6)]
+# Three-channel copies for OpenCV's multi-core maths (numpy broadcasting over a 1080x1920 frame is single-core).
+# The grain strength is baked in once instead of being multiplied on every frame.
+VIGN3 = np.ascontiguousarray(np.repeat(VIGN, 3, 2))
+GRAIN3 = [np.ascontiguousarray(np.repeat(g * P.get("grain", 0.022), 3, 2)) for g in GRAIN]
+del yy, xx
 
 
 def soft_blur(img, sigma):
@@ -201,10 +206,17 @@ def soft_blur(img, sigma):
 
 
 def bloom(img, k):
-    hi = np.clip(img - 0.6, 0, 1)
+    # same maths as clip(img - 0.6, 0, 1) -> blur at 1/8 -> add, but with OpenCV's multi-core operations
+    hi = cv2.min(cv2.max(cv2.subtract(img, (0.6, 0.6, 0.6, 0.0)), 0.0), 1.0)
     small = cv2.resize(hi, (W // 8, H // 8), interpolation=cv2.INTER_AREA)
-    g = cv2.GaussianBlur(small, (0, 0), 4) + cv2.GaussianBlur(small, (0, 0), 12)
-    return img + cv2.resize(g, (W, H)) * k
+    g = cv2.add(cv2.GaussianBlur(small, (0, 0), 4), cv2.GaussianBlur(small, (0, 0), 12))
+    return cv2.scaleAdd(cv2.resize(g, (W, H)), float(k), img)
+
+
+def finish(img, k):
+    """Vignette + film grain + clip to 8-bit, in three multi-core passes."""
+    out = cv2.add(cv2.multiply(img, VIGN3), GRAIN3[k % 6])
+    return cv2.convertScaleAbs(cv2.max(out, 0.0), alpha=255.0)
 
 
 # ------------------------------------------------------------------ person matte + face
@@ -222,27 +234,49 @@ class Matte:
                 base_options=BaseOptions(model_asset_path=str(model)), running_mode=vision.RunningMode.VIDEO,
                 output_confidence_masks=True))
         self.face = np.array([W / 2, H * 0.42], np.float32)
+        self.target = None  # latest measured face position; the camera eases toward it every frame
+        self.last = -10**9
 
-    def __call__(self, bgr, k):
+    def __call__(self, bgr, k, need=True):
+        """Person matte at full size when `need` (words behind the speaker, invert glow), else None.
+        Segmentation is the slowest step of the style pass, so outside those windows it runs only every
+        FACE_STEP frames, just to keep the face position fresh; the per-frame camera smoothing is unchanged."""
         if self.seg is None:
-            return np.zeros((H, W), np.float32)
-        small = cv2.cvtColor(cv2.resize(bgr, (W // 4, H // 4), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2RGB)
-        r = self.seg.segment_for_video(self.mp.Image(image_format=self.mp.ImageFormat.SRGB, data=np.ascontiguousarray(small)),
-                                       int(k * 1000 / FPS))
-        m = 1 - r.confidence_masks[0].numpy_view()
-        self.prev = m if self.prev is None else 0.65 * m + 0.35 * self.prev
-        m = np.clip((self.prev - 0.35) / 0.4, 0, 1).astype(np.float32)
-        # face: top of the person mass, horizontally its centre there
-        rows = np.where(m.max(1) > 0.5)[0]
-        if len(rows) > 10:
-            top = rows[0]
-            band = m[top:top + m.shape[0] // 7]
-            cols = np.where(band.max(0) > 0.5)[0]
-            if len(cols):
-                fx = (cols[0] + cols[-1]) / 2 * 4
-                fy = (top + m.shape[0] * 0.11) * 4
-                self.face = 0.85 * self.face + 0.15 * np.array([fx, fy], np.float32)
-        return cv2.resize(m, (W, H), interpolation=cv2.INTER_LINEAR)
+            return np.zeros((H, W), np.float32) if need else None
+        if need or k - self.last >= FACE_STEP:
+            self.last = k
+            small = cv2.cvtColor(cv2.resize(bgr, (W // 4, H // 4), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2RGB)
+            r = self.seg.segment_for_video(self.mp.Image(image_format=self.mp.ImageFormat.SRGB, data=np.ascontiguousarray(small)),
+                                           int(k * 1000 / FPS))
+            m = 1 - r.confidence_masks[0].numpy_view()
+            self.prev = m if self.prev is None else 0.65 * m + 0.35 * self.prev
+            self.mask = np.clip((self.prev - 0.35) / 0.4, 0, 1).astype(np.float32)
+            # face: top of the person mass, horizontally its centre there
+            m = self.mask
+            rows = np.where(m.max(1) > 0.5)[0]
+            if len(rows) > 10:
+                top = rows[0]
+                band = m[top:top + m.shape[0] // 7]
+                cols = np.where(band.max(0) > 0.5)[0]
+                if len(cols):
+                    self.target = np.array([(cols[0] + cols[-1]) / 2 * 4, (top + m.shape[0] * 0.11) * 4], np.float32)
+        if self.target is not None:
+            self.face = 0.85 * self.face + 0.15 * self.target
+        return cv2.resize(self.mask, (W, H), interpolation=cv2.INTER_LINEAR) if need else None
+
+
+FACE_STEP = 4  # face position measured ~7 times a second outside the matte windows
+
+
+def matte_needed(t):
+    """Frames where the full person matte is drawn (plus a short lead-in so its smoothing has settled)."""
+    for s in SLAMS:
+        if s["t0"] - 0.4 <= t < s["t1"] + 0.3:
+            return True
+    for tr in TRANS:
+        if tr["kind"] == "invert" and -0.4 <= t - tr["t"] < 0.2:
+            return True
+    return False
 
 
 # ------------------------------------------------------------------ timeline helpers
@@ -254,6 +288,7 @@ PUNCHES = P.get("punches", [])
 SLAMS = P["slams"]  # [{t0,t1,text,style}]
 CHIPS = P["chips"]  # [{t0,t1,text}]
 LOGOS = P["logos"]  # [{t0,t1,dir,frames,side}]
+ZERO_MATTE = np.zeros((H, W), np.float32)  # stands in for the matte on frames that never draw it
 
 
 def shot_at(t):
@@ -557,16 +592,18 @@ def render_range(start, end, dst, tag=""):
         if len(buf) < n:
             break
         raw = np.frombuffer(buf, np.uint8).reshape(H, W, 3)
-        matte = matte_fn(raw, k)
+        t = k / FPS
+        need = matte_needed(t)
+        matte = matte_fn(raw, k, need)
         if k < start:
             k += 1
             continue
-        t = k / FPS
         face = matte_fn.face
         M, _ = camera(t, face)
         graded = cv2.LUT(grade_like(raw), LUT)
-        frame = cv2.warpAffine(graded, M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT).astype(np.float32) / 255
-        matte = cv2.warpAffine(matte, M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+        frame = cv2.warpAffine(graded, M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+        frame = np.multiply(frame, np.float32(1 / 255), dtype=np.float32)
+        matte = cv2.warpAffine(matte, M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT) if need else ZERO_MATTE
         fpos = M[:, :2] @ face + M[:, 2]
         img = draw_slams(frame, matte, t, fpos)
         draw_chips(img, t, fpos)
@@ -586,9 +623,8 @@ def render_range(start, end, dst, tag=""):
                 img = blur_scale(img, d)
         img = flash_at(img, t)
         img = hit_fx(img, t)
-        img = bloom(img, P.get("bloom", 0.35))
-        img = img * VIGN + GRAIN[k % 6] * P.get("grain", 0.022)
-        enc.stdin.write((np.clip(img, 0, 1) * 255 + 0.5).astype(np.uint8).tobytes())
+        img = bloom(np.ascontiguousarray(img, np.float32), P.get("bloom", 0.35))
+        enc.stdin.write(finish(img, k).tobytes())
         k += 1
         if (k - start) % 10 == 0:
             print(f"PART_PROGRESS {tag} {k - start}", flush=True)
