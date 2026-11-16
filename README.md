@@ -1,124 +1,259 @@
+<div align="center">
+
+<img src="docs/images/logo.png" width="84" alt="Takebloom logo">
+
 # Takebloom
 
-[Download for Windows](https://github.com/ganguydhrubo/video-studio/releases/latest/download/Takebloom-Setup.exe) · [Releases and checksums](https://github.com/ganguydhrubo/video-studio/releases/latest)
+### Your raw clips in. A finished, captioned, ready-to-post video out.<br>On your own PC. Free. No account. No upload.
 
-## Takebloom desktop workspace
+[![Download for Windows](https://img.shields.io/badge/Download-Windows%2010%2F11-0f766e?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ganguydhrubo/video-studio/releases/latest/download/Takebloom-Setup.exe)
+[![Latest release](https://img.shields.io/github/v/release/ganguydhrubo/video-studio?style=for-the-badge&color=e8735a&label=release)](https://github.com/ganguydhrubo/video-studio/releases/latest)
+[![MIT licence](https://img.shields.io/badge/licence-MIT-1d2b2a?style=for-the-badge)](LICENSE)
 
-Open Takebloom in a separate app window. Choose files directly from your PC, follow a simple illustrated editing journey, and review the finished video. AI providers have recognisable icons and individual cards. Progress reflects real completed stages; technical logs are tucked away.
+![Runs offline](https://img.shields.io/badge/runs-offline-0f766e?style=flat-square)
+![No account](https://img.shields.io/badge/account-not%20needed-0f766e?style=flat-square)
+![No watermark](https://img.shields.io/badge/watermark-none-0f766e?style=flat-square)
+![AI optional](https://img.shields.io/badge/AI-optional%20%26%20free-e8735a?style=flat-square)
+![Any language](https://img.shields.io/badge/speech-any%20language-e8735a?style=flat-square)
 
-The interface and processing server run on your PC. `127.0.0.1` is your own computer, not a public host. Footage is not automatically published. Optional online AI review sends transcript text to the selected provider; select AI Off for local planning. Edge provides the app window; the default browser is the fallback.
+<br>
 
-Local-first video production for Windows. Free editing tools, with optional AI providers using your own accounts.
+<img src="docs/images/opening.jpg" width="100%" alt="Takebloom opening screen: a ringed planet with the Takebloom logo and the line 'Every take, beautifully told'">
 
-- **Works with no AI service at all.** A local editor brain (voice stress, key words, hook strength) and a
-  video-sense pass (shots, sharpness, light, motion, people, music beats) decide the edit. No AI service is needed;
-  a free AI editor reviews the story by default (transcript text only) and can be switched off with `--no-ai`.
-- **Edit my footage**: drop your clips and describe the result ("45-second Hinglish reel, remove mistakes"). The studio:
-  - watches the footage first and says what it understood (talking head, vlog, action, scenic/product, lifestyle)
-  - talking videos: cuts mistakes, picks the hook, virtual camera angles, words behind you, pop-out hook card
-  - no talking (travel, product, cars, events): a beat-synced montage of the best moments, on your own music if the clip has it
-  - transcribes speech locally and removes silences, filler words and fumbled retakes
-  - **builds a story**: cuts the self-intro, sign-off and repeats, opens cold on the strongest self-contained claim,
-    keeps concrete examples (names, numbers) and ends on the payoff. Works in any spoken language: each line is
-    translated to English on this PC to judge its meaning. The Studio shows "How the story was built", line by line.
-  - **an AI senior editor reviews the story** (free AI by default, `--no-ai` to switch off): it reads every line and the
-    draft, proposes a better cut with a reason for each change, and says what footage would show each line. Its cut is
-    checked against editing rules before it is used; if it fails, the local draft stands.
-  - **paces it**: holds a beat after strong lines and questions, runs weak lines tight
-  - **B-roll** (`--broll <folder>`, or put clips in `%LOCALAPPDATA%\VideoStudio\broll`): matches what each kept line
-    means to a moment in your own clips and cuts away for up to 2.8 s while your voice continues (never on the cold
-    open, the payoff or a giant-text slam). Each clip is indexed once and cached.
-  - picks the hook and the order, and trims to your target length
-  - reframes to 9:16, 16:9, 1:1 or 4:5 with face tracking, and adds punch-in zooms
-  - cleans the voice and colour-corrects the footage. It never replaces your background, and never brightens an already-bright face.
-  - adds word-highlighted captions (native or Roman script) placed off your face and clear of the Reels/Shorts buttons,
-    a title, keyword graphics and SFX
-  - music: your own tracks first (put files you have rights to in `%LOCALAPPDATA%\VideoStudio\music`, optionally in
-    mood folders like `uplifting\`), with the track's drop lined up to the hook; otherwise an original arranged bed in
-    one of six genres (lo-fi, trap, house, cinematic, desi tabla + tanpura, pop) whose drop lands as the hook ends and
-    which cuts out for a beat before each punch-word. A different key, tempo and progression every video.
-  - every export comes with a ready-to-paste post (title, caption, hashtags), a cover frame and a Premiere/Resolve timeline
-- **Your words** (`video-studio vocab add Sahkarmi Dhrubo`): names and brands are listened for and always spelled right.
-- **Watch folder** (`video-studio watch <folder> "<brief>"`): every clip dropped in becomes a finished draft.
-  - normalises loudness, QA-checks the result and exports for each platform
-- **Script to video**: paste a script. The studio:
-  - plans scenes (an AI director, or local rules)
-  - narrates with Kokoro (or the Windows voice)
-  - renders 3D scenes in Blender (cinematic or toon), motion graphics (built-in canvas or HyperFrames), music and SFX
-  - assembles, QA-checks and exports
-- **One long video -> many shorts** (`video-studio shorts`): finds the best complete stretches and fully edits each one,
-  with a plain-English reason per clip.
-- **Learns any style you show it** (`video-studio learn-style <folder> --name ...`): give it reels you love, of any genre;
-  it measures their cut rhythm, beat sync, punch-ins and colour on this PC and edits in that style (`--like name`).
-  Only numbers are kept; the videos are never copied or uploaded.
-- **Review before you publish**: the Studio opens each project in a workspace - player, a timeline of the edit (your lines, B-roll, big text, cuts, and where each moment sits in the recording), and tabs for the story notes, every spoken line, look and sound, quality checks, exports and rating. Click a line on the timeline or tick it in the list to keep or cut it, then re-edit.
-- **Learns your taste**: rate each video 1–5 stars and add notes. A Bayesian preference model, plus searchable project memory, steers the next video. You can review or delete everything (`video-studio memory ...`). No AI model is trained or fine-tuned.
+</div>
+
+---
+
+## Why Takebloom?
+
+Most video apps hand you a timeline and wish you luck. **Takebloom does the edit for you.** It watches your footage, listens to every word, cuts the mistakes, builds a story with a hook and a payoff, adds captions, music and graphics, checks the result, and gives you a video for every platform, plus the caption and cover to post with it.
+
+Everything runs on **your PC**. Your footage never leaves it unless you share it yourself.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🎬 Edit my footage
+Drop your clips, type what you want: *"45-second Hinglish reel, remove mistakes"*. Takebloom cuts silences, fillers and retakes, opens on your strongest line, and ends on the payoff.
+
+</td>
+<td width="50%" valign="top">
+
+### ✍️ Script to video
+Paste a script. Get scenes, a voice-over, music, animated text and captions, assembled and quality-checked.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🖼️ Photos to video
+A folder of pictures becomes a moving story with titles, music and transitions, using one of 24 ready templates.
+
+</td>
+<td valign="top">
+
+### ✂️ Cut-out, restyle and slow motion
+Replace or blur the background without a green screen. Change the shape, the colour look, the speed and the stability of any clip.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 📲 Share everywhere
+Download in one click. Get ready captions for Instagram, YouTube, TikTok, Facebook, LinkedIn, X and WhatsApp. Make Instagram-style covers.
+
+</td>
+<td valign="top">
+
+### 💻 Knows your PC
+Before you start, it checks this computer and tells you honestly what it can make, how long it will take, and what needs a bigger machine.
+
+</td>
+</tr>
+</table>
+
+---
+
+## See it work
+
+<table>
+<tr>
+<td width="62%"><img src="docs/images/create.png" alt="The Create page with four ways to start: edit footage, script, photos and quick tools"></td>
+<td width="38%" align="center"><img src="docs/images/script-demo.gif" width="240" alt="A 9-second clip of a video Takebloom made from a script: animated words with highlighted captions"><br><sub>Made from a 6-line script in 18 seconds.<br>Voice, music, captions and QA all automatic.</sub></td>
+</tr>
+</table>
+
+**Every finished film opens in a workspace**: player, story notes, every spoken line, look and sound, quality checks (scored out of 100), exports and your rating.
+
+<img src="docs/images/finished.png" alt="A finished film with Play, Download and Share buttons, the story tab and a quality score of 100">
+
+### Post it anywhere, with the caption already written
+
+<img src="docs/images/share.png" alt="The Share tab with Download, Captions, Show in folder, Share with apps on this PC, and cards for Instagram, YouTube, TikTok, Facebook, LinkedIn and X">
+
+Each card has an editable caption with hashtags picked from what you actually said. **Open Instagram** copies the caption and opens the upload page. **Share with apps on this PC** opens the Windows share panel (WhatsApp, Mail, Nearby sharing and more).
+
+### Covers that look right everywhere
+
+<img src="docs/images/covers.png" alt="The cover maker: pick a frame, write a title, choose a style, and see a reel cover, an Instagram profile grid preview and a YouTube thumbnail at once">
+
+Pick any frame, write a title, and see it as a **reel cover (9:16)**, inside an **Instagram profile grid (3:4)** and as a **YouTube thumbnail (16:9)** at the same time. One click saves all three.
+
+### Honest about your hardware
+
+<table>
+<tr>
+<td width="60%"><img src="docs/images/this-pc.png" alt="What this PC can make: processor, memory, graphics card and a plain-English verdict for each kind of video"></td>
+<td width="40%" valign="top"><img src="docs/images/updates.png" alt="App updates card with Check now, automatic updates and roll back"><br><br>Safe in-app updates: the new version is checked before it replaces the old one, and the old one is kept so you can roll back.</td>
+</tr>
+</table>
+
+---
+
+## What happens inside an edit
+
+```mermaid
+flowchart LR
+    A[Your clips] --> B[Watch<br><sub>shots, faces, light,<br>motion, music beats</sub>]
+    B --> C[Listen<br><sub>speech to text<br>in any language</sub>]
+    C --> D[Build the story<br><sub>hook, examples,<br>payoff, no repeats</sub>]
+    D --> E{AI review?}
+    E -- free AI on --> F[Senior-editor review<br><sub>checked against<br>editing rules</sub>]
+    E -- AI off --> G
+    F --> G[Cut and polish<br><sub>reframe, captions,<br>music, graphics</sub>]
+    G --> H[Quality check<br><sub>score out of 100</sub>]
+    H --> I[Exports<br><sub>Reels, Shorts, TikTok,<br>YouTube, caption, cover</sub>]
+```
+
+<details>
+<summary><b>Everything the editor does (click to open)</b></summary>
+
+- **Works with no AI service at all.** A local editor brain (voice stress, key words, hook strength) and a video-sense pass (shots, sharpness, light, motion, people, music beats) decide the edit. A free AI editor reviews the story by default (transcript text only) and can be switched off with `--no-ai`.
+- **Understands the footage first**: talking head, vlog, action, scenic/product or lifestyle.
+- **Talking videos**: cuts mistakes, picks the hook, virtual camera angles, words behind you, a pop-out hook card.
+- **No talking** (travel, product, cars, events): a beat-synced montage of the best moments, on your own music if the clip has it.
+- **Builds a story**: cuts the self-intro, sign-off and repeats, opens cold on the strongest self-contained claim, keeps concrete examples (names, numbers) and ends on the payoff. Works in any spoken language: each line is translated to English on this PC to judge its meaning.
+- **Paces it**: holds a beat after strong lines and questions, runs weak lines tight.
+- **B-roll** from your own clips, matched to what each line means.
+- **Reframes** to 9:16, 16:9, 1:1 or 4:5 with face tracking and punch-in zooms.
+- **Cleans** the voice and corrects the colour. It never replaces your background and never over-brightens a face.
+- **Captions** with the spoken word highlighted, in native or Roman script, kept off your face and clear of the Reels/Shorts buttons.
+- **Music**: your own tracks first, with the drop lined up to the hook; otherwise an original bed in one of six genres (lo-fi, trap, house, cinematic, desi tabla + tanpura, pop), different every video.
+- **Your words**: `video-studio vocab add Sahkarmi Dhrubo` and names are always spelled right.
+- **One long video to many shorts**, each with a plain-English reason.
+- **Learns any style you show it**: give it reels you love; it measures their rhythm, beat sync, punch-ins and colour, and edits that way. Only numbers are kept.
+- **Learns your taste** from your 1 to 5 star ratings. You can see and delete everything it remembers. No AI model is trained.
+- **Every export** comes with a ready post, a cover and a Premiere/Resolve timeline.
+
+</details>
+
+---
+
+## How it compares (honestly)
+
+Takebloom is not trying to replace a professional timeline editor or a cloud video generator. It does a different job: **the whole edit, automatically, on your own PC, for free.**
+
+| | **Takebloom** | Quick editors<br><sub>CapCut, VN, Filmora, Canva, Clipchamp, VEED, InVideo</sub> | Pro editors<br><sub>Premiere, Resolve, Final Cut, After Effects, HitFilm</sub> | Descript | AI generators<br><sub>Runway, Sora, Veo, Kling, Pika, Luma</sub> |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Edits your footage for you, start to finish | ✅ | Partly (templates, auto-cut) | ❌ you edit by hand | Partly (edit by text) | ❌ makes new clips |
+| Builds a story: hook, examples, payoff | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Works fully offline | ✅ | Mostly ❌ | ✅ | ❌ | ❌ |
+| Your footage stays on your PC | ✅ | Mostly ❌ | ✅ | ❌ | ❌ |
+| Free, no watermark, no account | ✅ | Partly | Resolve / HitFilm free, others paid | ❌ | ❌ credits |
+| Tells you what your PC can make | ✅ | ❌ | ❌ | ❌ | n/a |
+| Captions, post text and covers in one go | ✅ | Partly | ❌ | Partly | ❌ |
+| Frame-by-frame manual timeline | Basic (keep/cut lines) | ✅ | ✅✅ | ✅ | ❌ |
+| Motion graphics and VFX depth | Templates + HyperFrames | ✅ | ✅✅ (After Effects) | ❌ | n/a |
+| Effects and template library size | 24 templates · 16 looks · 57 transitions | ✅✅ thousands | ✅✅ | Small | n/a |
+| Generates realistic new footage from text | Only on a big NVIDIA card | Partly | ❌ | ❌ | ✅✅ |
+| Cut-out quality on hair and fast motion | Good | Very good | Very good | Good | n/a |
+
+Takebloom uses **Blender** itself for 3D scenes, so that one is a partner, not a rival. If you need pixel-level manual control, finish in Resolve or Premiere: Takebloom exports an `.otio` timeline for exactly that.
+
+---
 
 ## Install
 
-1. Run `Takebloom-Setup-1.8.0.exe`. It installs per user, adds itself to PATH and creates Desktop and Start-menu shortcuts called "Takebloom". Open either shortcut, or double-click `VideoStudio.exe` in the portable folder. A separate Edge app window opens after the local server is ready; the default browser is used if Edge is unavailable. No terminal needs to stay open. Uninstall from Settings › Apps; your projects and memory are kept.
-2. Run `video-studio setup` (or open the Studio's System page). It scans this PC, explains in plain English what it can
-   and cannot edit, and installs everything it needs after one confirmation (~1.5 GB, all free and open source).
-   `video-studio setup --report` only scans. `video-studio doctor` lists every tool with the exact fix:
-   - **Required:** FFmpeg (`video-studio install ffmpeg`, via winget).
-   - **Recommended:** Blender for 3D (`install blender`), Python 3.11+ with the ML extras for transcription, voice cleanup and face tracking (`install whisper`), and Kokoro natural voices (`install kokoro`).
-   - **Optional:** Node.js plus HyperFrames (`install hyperframes`), and an AI brain (see `docs/AI_CLI.md`). The default
-     is **OpenCode's free models** (`install opencode`, no account). Ollama runs free and offline. Gemini and Qwen are
-     free with an account. Claude and Codex need a paid plan. The Studio's System page has an "AI brain" card with an
-     Install button, a Sign-in button and a free-model picker for each one. Sign-in always opens the provider's own login;
-     Takebloom never sees your password or tokens.
+1. **[Download Takebloom-Setup.exe](https://github.com/ganguydhrubo/video-studio/releases/latest/download/Takebloom-Setup.exe)** and run it. It installs for your user only and adds **Takebloom** to the Desktop and Start menu.
+2. Open Takebloom and go to **System**. It scans your PC, explains what it can and cannot make, and installs the free tools it needs after one confirmation (about 1.5 GB, all free and open source):
+   - **Required:** FFmpeg.
+   - **Recommended:** Blender for 3D, speech-to-text, voice cleaning and face tracking, and natural Kokoro voices.
+   - **Optional:** HyperFrames motion graphics, and an AI brain. The default is **OpenCode's free models** (no account). Ollama runs free and offline. Gemini and Qwen are free with an account. Claude and Codex need a paid plan. Takebloom never sees your password.
 
-   Every install shows the plan and the licence first, then asks before it runs.
+Every install shows the plan and the licence first, and asks before it runs.
 
-A portable zip (`Takebloom-1.8.0-portable.zip`) is also built. Extract the entire archive before opening `VideoStudio.exe`; keep `_internal` beside both executables. `video-studio.exe` remains the command-line entry and opens Studio when run without arguments. To run from source, use `pip install -e .` and then `video-studio ...`.
+> **Portable version:** `Takebloom-1.8.1-portable.zip`. Extract the whole zip, keep `_internal` beside the `.exe` files, and open `VideoStudio.exe`.
+>
+> **Checksums** for every file are on the [release page](https://github.com/ganguydhrubo/video-studio/releases/latest).
+>
+> **If it does not start:** logs are in `%LOCALAPPDATA%\VideoStudio\logs\`. Updates keep the old version as `VideoStudio-previous`.
 
-If startup fails, the desktop launcher shows the error. Logs are in `%LOCALAPPDATA%\VideoStudio\logs\startup.log` (server), `launcher-error.log` (launcher), and `install.log` (installer). Updating validates the extracted app before replacing the old copy and retains the old program folder as `VideoStudio-previous` for recovery.
+---
 
-## Use
+## Use it from the command line
 
 ```text
-video-studio studio                                   # the visual app (local web UI at 127.0.0.1)
+video-studio studio                                   # the app window
 video-studio edit clip1.mp4 clip2.mov "60s reel, remove mistakes, bold captions"
 video-studio edit talk.mov "Hinglish reel" --caption-script roman --target 45 --platform reels shorts
 video-studio edit trip.mp4 "Goa trip, 20 seconds" --like travel-cinematic     # no talking: beat montage
 video-studio shorts podcast.mp4 "viral Hinglish reel" --count 5 --min 20 --max 58
-video-studio learn-style "C:\Videos\reels I love" --name travel-cinematic && video-studio styles
-video-studio learn                                    # keep/cut model from your finished edits (tested first)
-video-studio setup [--report]
 video-studio make script.txt --instructions "warm explainer, 3D hook" --aspect 9:16
-video-studio init my-video && video-studio analyze && video-studio storyboard && video-studio produce \
-  && video-studio render && video-studio validate && video-studio export --platform shorts youtube
-video-studio resume [--from plan]                     # every stage is resumable and cached
-video-studio feedback 5 --notes "loved the captions, music a bit loud"
-video-studio edit talk.mov "viral Hinglish reel" --fx viral --broll "C:\Videos\my b-roll"
-video-studio ai status | ai login claude | ai use opencode | ai test
-video-studio photos "C:\Pictures\Goa" --template travel --titles "Day one|The beach|Home"   # pictures -> video
+video-studio photos "C:\Pictures\Goa" --template travel --titles "Day one|The beach|Home"
 video-studio restyle clip.mp4 --aspect 9:16 --grade teal_orange --speed 0.5 --smooth-slow --steady
 video-studio cutout talk.mp4 --background colour --colour "#1d2b2a"    # or blur | image | video | transparent
 video-studio generate "drone shot over tea gardens at sunrise"        # only on a PC with a large NVIDIA card
-video-studio machine                                  # what THIS PC can make: limits, speed, what needs the cloud
-video-studio library                                  # 24 templates, 16 colour looks, 57 transitions
+video-studio learn-style "C:\Videos\reels I love" --name travel-cinematic
+video-studio machine                                  # what THIS PC can make
+video-studio library                                  # templates, colour looks, transitions
+video-studio feedback 5 --notes "loved the captions, music a bit loud"
 video-studio update check | download | install | rollback | auto-on | auto-off
+video-studio ai status | ai login claude | ai use opencode | ai test
+video-studio setup [--report]  ·  video-studio doctor
 ```
 
-The script format is plain paragraphs (one scene each), with optional tags: `# Title`, `[3D: rocket]`, `[STAT: 70% | label]`, `[QUOTE: text - Author]`, bullet lists, `[IMAGE: path]`, `[CHART: ...]`, `[CTA: ...]` and `[HYPERFRAMES]`.
+**Script format:** plain paragraphs, one scene each, with optional tags: `# Title`, `[3D: rocket]`, `[STAT: 70% | label]`, `[QUOTE: text - Author]`, bullet lists, `[IMAGE: path]`, `[CHART: ...]`, `[CTA: ...]` and `[HYPERFRAMES]`.
 
-## Outputs (per project)
+<details>
+<summary><b>What you get in each project folder</b></summary>
 
 | File | What it is |
 |---|---|
 | `output/master.mp4` | The finished video |
-| `exports/` | Platform cuts, thumbnail, SRT/VTT captions, and an `.otio` timeline for finishing in DaVinci Resolve or Kdenlive |
-| `output/qa/qa_report.md`, `contact_sheet.jpg` | Automated quality report |
-| `storyboard.md` / `edit_plan.md`, `transcript.txt` | Human-readable plan |
-| `project.json`, `build/` | Reproducible project file and cached intermediates (`video-studio clean` frees space) |
+| `exports/` | Platform cuts, covers, thumbnail, SRT/VTT captions, the ready post, and an `.otio` timeline for Resolve or Kdenlive |
+| `output/qa/qa_report.md`, `contact_sheet.jpg` | Automatic quality report |
+| `storyboard.md` / `edit_plan.md`, `transcript.txt` | The plan, in plain words |
+| `project.json`, `build/` | Project file and cached steps (`video-studio clean` frees space) |
+
+</details>
+
+---
+
+## Privacy, in one line
+
+The app and its server run on `127.0.0.1`, which is **your own computer**. Nothing is uploaded or posted for you. The optional AI review sends only the transcript text to the AI you choose; pick **AI Off** to keep even that on your PC.
+
+## Honest limits
+
+- Takebloom does **not post to social media by itself**. Each site needs its own approval and your sign-in for that, so it opens the upload page with your caption ready.
+- Script-to-video makes **animated text scenes** (kinetic words, stats, quotes, calls to action) on a moving background. Real pictures appear only when you add `[IMAGE: path]`; 3D needs Blender.
+- Generating new realistic footage from text needs a large NVIDIA graphics card. On other PCs Takebloom says so up front.
+
+The full list, with fixes, is in [Known limitations](docs/KNOWN_LIMITATIONS.md).
 
 ## Docs
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [AI CLI integration](docs/AI_CLI.md)
-- [Licences](docs/LICENSES.md)
-- [Known limitations and recovery](docs/KNOWN_LIMITATIONS.md)
-- [Test report](docs/TEST_REPORT.md)
-- [Research notes](docs/research/raw_findings.md), [editing grammar](docs/research/editing_grammar.md),
-  [edit styles catalog](docs/research/edit_styles_catalog.md), [competitors](docs/research/competitors.md)
+[Architecture](docs/ARCHITECTURE.md) · [AI integration](docs/AI_CLI.md) · [Licences](docs/LICENSES.md) · [Known limitations](docs/KNOWN_LIMITATIONS.md) · [Test report](docs/TEST_REPORT.md) · [Release notes](docs/releases/) · [Research](docs/research/raw_findings.md)
+
+---
+
+<div align="center">
+
+**If Takebloom saved you an evening of editing, give it a ⭐. It helps other creators find it.**
+
+Made in India by [Dhrubo Ganguly](https://github.com/ganguydhrubo) · MIT licence
+
+</div>

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import json
 import shutil
 from pathlib import Path
@@ -60,7 +62,7 @@ def export(proj: Project, platforms: list[str], video: Path | None = None) -> li
         console.ok(f"{p['label']}: {dest}")
     # cover: the hook frame (big hook words over the pop-out card) when there is a hook, else 30% in
     thumb = proj.exports / f"{base}_thumbnail.jpg"
-    plan = read_json(proj.build / "edit_plan.json", {}) or {}
+    plan = read_json(proj.build / "edit_plan.json", {}) or read_json(proj.build / "plan.json", {}) or {}
     ff.frame_at(video, 1.1 if plan.get("hook_text") else min(dur * 0.3, 4.0), thumb)
     out.append(thumb)
     post = publish_pack(proj, plan, dur, platforms)
@@ -111,8 +113,11 @@ def publish_pack(proj: Project, plan: dict, duration: float, platforms: list[str
         r = brain.transliterate(e).lower().strip(".,!?")
         if r in LOAN and r not in keys:  # hashtags people search: real English terms only, never Hindi fillers
             keys.append(r)
-    text = (" ".join(brain.transliterate(t) for u in plan.get("utterances") or [] for t in u.get("text", "").split())
-            + " " + proj.data.get("brief", "")).lower()
+    script = proj.root / "script.txt"
+    spoken = " ".join(brain.transliterate(t) for u in plan.get("utterances") or [] for t in u.get("text", "").split())
+    if not spoken and script.is_file():  # a script video: its own words decide the topic and hashtags
+        spoken = re.sub(r"\[[^\]]*\]|#", " ", script.read_text(encoding="utf-8", errors="replace"))
+    text = (spoken + " " + proj.data.get("brief", "")).lower()
     if len(keys) < 3:  # top up from the English terms actually spoken
         for t in text.split():
             t = t.strip(".,!?")
@@ -130,6 +135,9 @@ def publish_pack(proj: Project, plan: dict, duration: float, platforms: list[str
     tags = list(dict.fromkeys(t for t in tags if t))[:10]
     title = hook.title()
     first = next((u.get("text") for u in plan.get("utterances") or [] if u.get("id") in (plan.get("keep") or [])), "")
+    if not first and script.is_file():  # a script video: its first narration paragraph
+        first = next((ln.strip() for ln in script.read_text(encoding="utf-8", errors="replace").splitlines()
+                      if ln.strip() and not ln.lstrip().startswith(("#", "["))), "")
     first_roman = " ".join(brain.transliterate(t) for t in first.split()[:14])
     hashtags = " ".join("#" + t for t in tags)
     lines = [f"Video: {proj.data.get('name', '')}  ({duration:.0f} s)", ""]

@@ -204,6 +204,25 @@ label.lbl i{font-style:normal;width:22px;height:22px;border-radius:50%;backgroun
 .upd-bar{height:6px;border-radius:9px;background:var(--raised);overflow:hidden;margin:10px 0}.upd-bar i{display:block;height:100%;background:var(--teal);width:0}
 .source-frame img.src-img{display:block;max-width:100%;max-height:52vh;object-fit:contain}
 @media (max-width:900px){.modes.quick{grid-template-columns:1fr 1fr}.featgrid{grid-template-columns:1fr}}
+.share-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 6px}
+.share-top .btn{padding:8px 13px}
+.sites{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:10px}
+.site{border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--surface);display:flex;flex-direction:column;gap:8px}
+.site header{display:flex;align-items:center;gap:9px}.site header b{font:650 14px var(--display)}
+.site .logo{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;color:#fff;font:700 13px var(--display);flex:none}
+.site textarea{min-height:84px;font-size:12.5px}
+.site .row{gap:6px}.site .row .btn{padding:6px 10px;font-size:12.5px}
+.site small{color:var(--muted);font-size:11.5px;line-height:1.4}
+.cover-maker{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:16px;margin-top:8px}
+.cover-maker .advgrid{margin-top:0}
+.cover-previews{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+.cover-previews figure{margin:0;display:flex;flex-direction:column;gap:5px;align-items:center}
+.cover-previews figcaption{font-size:11.5px;color:var(--muted)}
+.cover-previews canvas{border-radius:8px;box-shadow:0 6px 18px -10px rgba(0,0,0,.5);background:#0b262a;display:block}
+.ig-grid{display:grid;grid-template-columns:repeat(3,54px);gap:2px;background:#fff;padding:2px;border-radius:6px}
+.ig-grid i{display:block;width:54px;height:72px;background:#d9d4c7}.ig-grid i:nth-child(odd){background:#c9c3b4}
+.ig-grid canvas{width:54px!important;height:72px!important;border-radius:0!important;box-shadow:none!important}
+@media (max-width:900px){.cover-maker{grid-template-columns:1fr}}
 .advgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-top:10px}
 .advgrid label{font:600 12.5px var(--display);color:var(--muted);display:flex;flex-direction:column;gap:5px}
 .cta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:20px}
@@ -1177,7 +1196,7 @@ function renderFiles() {
 
 function updateSourcePreview(index = S.previewIndex || 0) {
   const file = S.files[index] || S.files[0]; S.previewIndex = file ? S.files.indexOf(file) : 0;
-  const video = $("#sourcePreview"), source = file && (file.preview || (file.path ? media(file.path) : null));
+  const video = $("#sourcePreview"), source = file && (file.proxy || file.preview || (file.path ? media(file.path) : null));
   $("#previewEmpty").hidden = !!source; video.hidden = !source; $("#srcTag").hidden = !source;
   if (!source) { video.removeAttribute("src"); video.dataset.source = ""; video.load(); $("#previewName").textContent = "No clip chosen yet"; $("#previewDuration").textContent = "Select a video from this computer"; return; }
   $("#previewName").textContent = file.name;
@@ -1192,8 +1211,9 @@ function updateSourcePreview(index = S.previewIndex || 0) {
   if (video.dataset.source !== source) {
     video.dataset.source = source; video.src = source;
     $("#previewDuration").textContent = "Loading source preview…";
-    video.onloadedmetadata = () => $("#previewDuration").textContent = fmtTime(Math.round(video.duration)) + " long · " + video.videoWidth + " × " + video.videoHeight + " · original clip";
-    video.onerror = () => $("#previewDuration").textContent = "This format cannot be played in the preview. Takebloom can still edit it.";
+    video.onloadedmetadata = () => { if (!video.videoWidth && !file.proxy) return fixPreview(file, video);
+      $("#previewDuration").textContent = fmtTime(Math.round(video.duration)) + " long · " + (file.proxy ? "preview copy · the edit uses the original" : video.videoWidth + " × " + video.videoHeight + " · original clip"); };
+    video.onerror = () => { if (!file.proxy) return fixPreview(file, video); $("#previewDuration").textContent = "This format cannot be played in the preview. Takebloom can still edit it."; };
   }
 }
 /* submit */
@@ -1414,7 +1434,7 @@ function showResult(p, status) {
   const story = p.story || [], idea = story.find(r => r.startsWith("The idea:"));
   const lines = p.lines || [], tl = p.timeline, isEdit = p.kind === "edit" && lines.length, assist = p.assist || {};
   const wide = (p.settings?.aspect || "9:16") === "16:9";
-  const tabs = [["story","Story"], ...(isEdit ? [["lines","Transcript", lines.filter(l => l.kept).length + "/" + lines.length]] : []), ["look","Look & sound"], ["quality","Checks", score], ["export","Exports"], ["rate","Feedback"]];
+  const tabs = [["story","Story"], ...(isEdit ? [["lines","Transcript", lines.filter(l => l.kept).length + "/" + lines.length]] : []), ["share","Share"], ["look","Look & sound"], ["quality","Checks", score], ["export","Exports"], ["rate","Feedback"]];
   if (!tabs.some(t => t[0] === S.tab)) S.tab = "story";
   const panes = {
     story: `${idea ? `<div class="idea">${esc(idea.replace("The idea: ", ""))}</div>` : ""}
@@ -1424,8 +1444,8 @@ function showResult(p, status) {
       ${isEdit && assist.openings?.length > 1 ? `<h3>Choose your opening</h3><div id="openings">${assist.openings.map(o => `<label class="opt ${o.chosen ? "on" : ""}"><input type="radio" name="opening" value="${esc(o.id)}" ${o.chosen ? "checked" : ""}>
         <span><b>${esc(o.en)}</b><span class="hint">${o.seconds} s · ${esc(o.why)}${o.chosen ? " · current opening" : ""}</span></span></label>`).join("")}</div>
         <div class="row" style="margin-top:8px"><button class="btn" id="openGo" disabled>Re-edit with this opening</button></div>` : ""}
-      <h3>How the story was built</h3>${story.filter(r => r !== idea).map(noteRow).join("") || '<div class="hint">Lines play in the order you recorded them.</div>'}
-      ${p.planner ? `<div class="hint" style="margin-top:12px">Edited by ${esc(p.planner.replace("local-brain", "the local editor brain").replace(/^ai:(\w+)/, "the local editor brain + AI editor ($1)"))}</div>` : ""}`,
+      <h3>How the story was built</h3>${story.filter(r => r !== idea).map(noteRow).join("") || `<div class="hint">${p.kind === "edit" ? "Lines play in the order you recorded them." : p.kind === "script" ? "Scenes play in the order of your script." : "Made in the order you chose."}</div>`}
+      ${p.planner ? `<div class="hint" style="margin-top:12px">${p.kind === "edit" ? "Edited" : "Planned"} by ${esc(p.planner.replace("local-brain", "the local editor brain").replace("local-rules", "Takebloom's local planner (no AI needed)").replace(/^ai:(\w+)/, "the local editor brain + AI editor ($1)"))}</div>` : ""}`,
     lines: isEdit ? `<label class="hint">Hook text (big words at the start - empty = none)<input type="text" id="hookText" value="${esc(p.hook_text || "")}" maxlength="40" style="margin-top:5px"></label>
       <div class="lines" id="lines" style="margin-top:10px">${lines.map(l => `<label data-id="${esc(l.id)}">
         <input type="checkbox" data-id="${esc(l.id)}" ${l.kept ? "checked" : ""}><span><span class="t">${tc(l.start)}${l.order ? " · plays #" + l.order : ""}</span> ${esc(l.text)}${l.retake ? ' <span class="tag">fumbled take</span>' : ""}${l.en && l.en !== l.text ? `<br><span class="hint">${esc(l.en)}</span>` : ""}</span></label>`).join("")}</div>
@@ -1443,6 +1463,7 @@ function showResult(p, status) {
         <div class="hint">${qa.fails ?? 0} fail · ${qa.warnings ?? 0} warning · automated checks on sync, loudness, clipping, black frames, format</div></div></div>
       <div class="checks">${checks}</div>
       <p class="hint" style="margin-top:14px">These checks are technical. Whether the edit is good is your call - rate it and the studio adapts.</p>`,
+    share: `<div id="shareBox"><div class="skel" style="width:60%"></div><div class="skel" style="width:40%"></div></div>`,
     export: `<h3>Saved on this PC</h3><p class="hint">These are files on this computer. Takebloom never publishes them for you.</p><div class="dl">${dls || '<span class="hint">Exports appear here.</span>'}</div>`,
     rate: `<h3>Rate it, and Takebloom learns your taste</h3>
       <div class="row"><div class="stars" id="stars">${[1,2,3,4,5].map(n => `<button aria-label="${n} stars" data-n="${n}" class="${(p.rating||0) >= n ? "on" : ""}">★</button>`).join("")}</div></div>
@@ -1455,6 +1476,8 @@ function showResult(p, status) {
     <div class="ws ${wide ? "wide" : ""}">
     <div><div class="viewer"><video id="vid" controls playsinline preload="metadata" ${p.thumb ? `poster="${media(p.thumb)}"` : ""} src="${media(p.master)}"></video><span class="tc" id="vtc">0:00.0</span><span class="fin">FINISHED EDIT</span><div class="burst" id="burst2" aria-hidden="true"></div></div>
       <div class="transport"><button class="btn primary" id="tPlay" title="Play / pause (Space)">Play</button><button class="btn ghost" id="tPrev" title="Previous cut (J)">◀ Cut</button><button class="btn ghost" id="tNext" title="Next cut (L)">Cut ▶</button>
+        <a class="btn" id="tDownload" href="${media(p.master)}&download=1" download title="Save the finished video">⬇ Download</a>
+        <button class="btn coral" id="tShare" title="Share, cover and captions">Share</button>
         <span class="spacer"></span>${qa.score != null ? `<span class="pill" title="Automated technical checks. They do not judge creative quality."><span class="dot ${score >= 90 ? "ok" : score >= 70 ? "warn" : "bad"}"></span>Checks ${score}/100</span>` : ""}</div></div>
     <div class="card insp"><div class="tabs" role="tablist">${tabs.map(([k, l, n]) => `<button role="tab" data-tab="${k}" aria-selected="${k === S.tab}">${l}${n != null ? `<span class="n">${esc(n)}</span>` : ""}</button>`).join("")}</div>
       ${tabs.map(([k]) => `<div class="pane" data-pane="${k}" role="tabpanel" ${k === S.tab ? "" : "hidden"}>${panes[k]}</div>`).join("")}</div>
@@ -1497,6 +1520,149 @@ function showResult(p, status) {
     S.job = r.job; S.since = 0; toast("Re-editing - cached work is reused."); openProject(p.root);
   });
   wireWorkspace(wrap, p, tl, lines);
+  wrap.querySelector("#tShare").onclick = () => { const b = wrap.querySelector('[data-tab="share"]'); if (b) { b.click(); b.scrollIntoView({block: "nearest", behavior: "smooth"}); } };
+  wireShare(wrap, p);
+}
+
+/* ---------- share: files, Windows share, upload pages with ready captions, Instagram-style covers ---------- */
+const SITE_COLOUR = {instagram: "linear-gradient(135deg,#f58529,#dd2a7b 55%,#8134af)", youtube: "#e62117", tiktok: "#111", facebook: "#1877f2",
+  linkedin: "#0a66c2", x: "#000", whatsapp: "#25d366"};
+const SITE_MARK = {instagram: "IG", youtube: "▶", tiktok: "♪", facebook: "f", linkedin: "in", x: "X", whatsapp: "W"};
+let shareBlob = null;
+async function wireShare(wrap, p) {
+  const box = wrap.querySelector("#shareBox"); if (!box) return;
+  let info;
+  try { info = await api("/api/share?root=" + encodeURIComponent(p.root)); }
+  catch (e) { box.innerHTML = `<p class="hint">Sharing details could not be loaded. ${esc(e.message)}</p>`; return; }
+  const name = f => f.split(/[\\/]/).pop();
+  const dl = (f, label) => f ? `<a class="btn" href="${media(f)}&download=1" download>${label}</a>` : "";
+  const canShare = !!(navigator.canShare && window.File);
+  const coverLinks = Object.entries(info.covers || {}).map(([k, f]) => dl(f, "⬇ " + ({reel: "Reel cover", grid: "Grid cover", youtube: "YouTube cover"})[k])).join("");
+  box.innerHTML = `<h3 style="margin-top:0">Get your video</h3>
+    <div class="share-top">${dl(info.video, "⬇ Download video")}${info.wide_video && info.wide_video !== info.video ? dl(info.wide_video, "⬇ 16:9 video") : ""}
+      ${coverLinks || dl(info.thumbnail, "⬇ Cover")}${dl(info.captions_file, "⬇ Captions (.srt)")}
+      <button class="btn" id="shReveal">Show in folder</button>
+      ${canShare ? '<button class="btn primary" id="shNative">Share with apps on this PC</button>' : ""}</div>
+    <p class="hint">${canShare ? "Share with apps opens the Windows share panel: WhatsApp, Instagram, Mail, Nearby sharing and any other app on this PC that takes videos. " : ""}Takebloom does not sign in to your accounts or post for you. Posting by itself needs each site's own approval and your sign-in, so each site below opens on its upload page with your caption ready to paste.</p>
+    <h3>Post on social media</h3>
+    <div class="sites">${info.sites.map(s => `<div class="site" data-site="${esc(s.key)}"><header><span class="logo" style="background:${SITE_COLOUR[s.key]}">${SITE_MARK[s.key]}</span><b>${esc(s.name)}</b></header>
+      <textarea aria-label="${esc(s.name)} caption">${esc(s.caption)}</textarea>
+      <div class="row"><button class="btn" data-copy>Copy caption</button><button class="btn" data-open="${esc(s.url)}">Open ${esc(s.name)}</button></div>
+      <small>${esc(s.how)}</small></div>`).join("")}</div>
+    <h3>Cover (thumbnail)</h3>
+    <p class="hint" style="margin-top:0">Pick the frame, add a title, and see it the way people will: as the reel cover, as a tile in an Instagram profile grid (3:4), and as a YouTube thumbnail.</p>
+    <div class="cover-maker">
+      <div class="advgrid">
+        <label class="wide">Frame <input type="range" id="cvTime" min="0" max="1" step="0.05" value="0"></label>
+        <label class="wide">Title on the cover<input type="text" id="cvTitle" maxlength="60" value="${esc(info.title.toUpperCase())}"></label>
+        <label>Style<select id="cvStyle"><option value="bold">Bold (big words)</option><option value="clean">Clean (lower third)</option><option value="none">Picture only</option></select></label>
+        <label>Colour<select id="cvColour"><option value="#ffffff">White</option><option value="#ffd23f">Yellow</option><option value="#ff8a65">Coral</option><option value="#7cf3d9">Mint</option></select></label>
+        <div class="row wide"><button class="btn primary" id="cvSave">Save covers</button><span class="hint" id="cvMsg" role="status"></span></div>
+      </div>
+      <div class="cover-previews">
+        <figure><canvas id="cvReel" width="180" height="320"></canvas><figcaption>Reel cover 9:16</figcaption></figure>
+        <figure><div class="ig-grid"><i></i><i></i><i></i><i></i><canvas id="cvGrid" width="108" height="144"></canvas><i></i><i></i><i></i><i></i></div><figcaption>Instagram profile grid 3:4</figcaption></figure>
+        <figure><canvas id="cvYt" width="256" height="144"></canvas><figcaption>YouTube 16:9</figcaption></figure>
+      </div>
+    </div>
+    <video id="cvSrc" src="${media(p.master)}" muted playsinline preload="auto" hidden></video>`;
+  box.querySelector("#shReveal").onclick = () => api("/api/reveal", {method: "POST", body: JSON.stringify({path: info.video || info.master})}).catch(e => toast(e.message));
+  box.querySelectorAll("[data-copy]").forEach(b => b.onclick = async () => {
+    const text = b.closest(".site").querySelector("textarea").value;
+    try { await navigator.clipboard.writeText(text); toast("Caption copied. Paste it on the site."); }
+    catch { const t = b.closest(".site").querySelector("textarea"); t.select(); document.execCommand("copy"); toast("Caption copied."); }
+  });
+  box.querySelectorAll("[data-open]").forEach(b => b.onclick = async () => {
+    const text = b.closest(".site").querySelector("textarea").value;
+    try { await navigator.clipboard.writeText(text); } catch {}
+    window.open(b.dataset.open, "_blank", "noopener");
+    toast("Caption copied. Add the video with Show in folder (drag it in) or the site's own upload button.", true);
+  });
+  const nat = box.querySelector("#shNative");
+  if (nat) nat.onclick = async () => {
+    const src = info.video || info.master;
+    try {
+      if (!shareBlob || shareBlob.src !== src) {
+        nat.disabled = true; nat.textContent = "Getting the video ready…";
+        const blob = await (await fetch(media(src))).blob();
+        shareBlob = {src, file: new File([blob], name(src), {type: "video/mp4"})};
+        nat.disabled = false; nat.textContent = "Share with apps on this PC";
+      }
+      const data = {files: [shareBlob.file], title: info.title, text: info.sites[0].caption};
+      if (!navigator.canShare(data)) return toast("This window cannot share video files. Use Show in folder instead.");
+      await navigator.share(data);
+    } catch (e) {
+      nat.disabled = false; nat.textContent = "Share with apps on this PC";
+      if (e.name === "NotAllowedError") toast("The video is ready. Press Share with apps once more.");
+      else if (e.name !== "AbortError") toast("Sharing did not open. Use Show in folder instead.");
+    }
+  };
+  // covers: drawn here from the finished video, so what you see is exactly what is saved
+  const v = box.querySelector("#cvSrc"), slider = box.querySelector("#cvTime");
+  const opts = () => ({title: box.querySelector("#cvTitle").value.trim(), style: box.querySelector("#cvStyle").value, colour: box.querySelector("#cvColour").value});
+  const redraw = () => { for (const [id] of [["#cvReel"], ["#cvGrid"], ["#cvYt"]]) { const c = box.querySelector(id); drawCover(c.getContext("2d"), v, c.width, c.height, opts()); } };
+  v.onloadedmetadata = () => { slider.max = Math.max(0.1, v.duration - 0.05).toFixed(2); slider.value = Math.min(1.1, v.duration / 3).toFixed(2); v.currentTime = +slider.value; };
+  v.onseeked = redraw;
+  slider.oninput = () => { v.currentTime = +slider.value; };
+  ["#cvTitle", "#cvStyle", "#cvColour"].forEach(id => box.querySelector(id).addEventListener("input", redraw));
+  box.querySelector("#cvSave").onclick = async () => {
+    if (!v.videoWidth) return toast("The video frame is not ready yet.");
+    const images = {};
+    for (const [k, [w, h]] of Object.entries(info.shapes)) {
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      drawCover(c.getContext("2d"), v, w, h, opts()); images[k] = c.toDataURL("image/jpeg", 0.9);
+    }
+    box.querySelector("#cvMsg").textContent = "Saving…";
+    try { await api("/api/cover", {method: "POST", body: JSON.stringify({root: p.root, images})}); box.querySelector("#cvMsg").textContent = "Saved next to your video. The reel cover is now the project thumbnail."; toast("Covers saved.", true); wireShare(wrap, p); }
+    catch (e) { box.querySelector("#cvMsg").textContent = e.message; }
+  };
+}
+function drawCover(ctx, v, W, H, o) {
+  ctx.fillStyle = "#0b262a"; ctx.fillRect(0, 0, W, H);
+  if (v.videoWidth) {
+    const k = Math.max(W / v.videoWidth, H / v.videoHeight), w = v.videoWidth * k, h = v.videoHeight * k;
+    const far = Math.max(W / H, (v.videoWidth / v.videoHeight)) / Math.min(W / H, (v.videoWidth / v.videoHeight)) > 1.6;
+    if (far) {  // a tall video on a wide cover (or the other way): blurred fill behind the whole picture, nothing cut off
+      ctx.save(); ctx.filter = `blur(${Math.round(Math.max(W, H) / 40)}px) brightness(.7)`; ctx.drawImage(v, (W - w) / 2, (H - h) / 2, w, h); ctx.restore();
+      const c = Math.min(W / v.videoWidth, H / v.videoHeight), cw = v.videoWidth * c, ch = v.videoHeight * c;
+      ctx.drawImage(v, (W - cw) / 2, (H - ch) / 2, cw, ch);
+    } else ctx.drawImage(v, (W - w) / 2, (H - h) / 2, w, h);
+  }
+  if (o.style === "none" || !o.title) return;
+  const bold = o.style === "bold", text = bold ? o.title.toUpperCase() : o.title;
+  const g = ctx.createLinearGradient(0, H * 0.45, 0, H); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.72)");
+  ctx.fillStyle = g; ctx.fillRect(0, H * 0.45, W, H * 0.55);
+  let size = Math.round(Math.min(W, H * 0.75) * (bold ? 0.13 : 0.075));
+  const font = s => `${bold ? 900 : 700} ${s}px "Segoe UI", "Arial Black", Arial, sans-serif`;
+  const wrapLines = () => { ctx.font = font(size); const out = []; let line = "";
+    for (const word of text.split(/\s+/)) { const t = line ? line + " " + word : word; if (ctx.measureText(t).width > W * 0.86 && line) { out.push(line); line = word; } else line = t; }
+    if (line) out.push(line); return out; };
+  let rows = wrapLines();
+  while (rows.length > 3 && size > 10) { size = Math.round(size * 0.88); rows = wrapLines(); }
+  const lh = size * 1.08, bottom = H * (bold ? 0.86 : 0.9);
+  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.lineJoin = "round";
+  rows.forEach((r, i) => {
+    const y = bottom - (rows.length - 1 - i) * lh;
+    ctx.lineWidth = Math.max(2, size * 0.14); ctx.strokeStyle = "rgba(0,0,0,.85)"; ctx.strokeText(r, W / 2, y);
+    ctx.fillStyle = o.colour; ctx.fillText(r, W / 2, y);
+  });
+}
+
+/* ---------- a playable preview for HEVC (iPhone) and other video this window cannot show ---------- */
+function fixPreview(file, video, tries = 0) {
+  if (!file || S.files[S.previewIndex || 0] !== file) return;
+  if (!file.path) {
+    $("#previewDuration").textContent = "Finishing the local copy, then a preview this window can play is made…";
+    if (tries < 400) setTimeout(() => fixPreview(file, video, tries + 1), 1500);
+    return;
+  }
+  api("/api/preview", {method: "POST", body: JSON.stringify({path: file.path})}).then(r => {
+    if (r.error) { $("#previewDuration").textContent = r.error; return; }
+    if (r.ready && !r.playable) { file.proxy = media(r.path); updateSourcePreview(); return; }
+    if (r.ready) { $("#previewDuration").textContent = "This format cannot be played in the preview. Takebloom can still edit it."; return; }
+    $("#previewDuration").textContent = `Making a preview this window can play${r.codec ? " (your video is " + r.codec.toUpperCase() + ")" : ""}… the edit uses the original.`;
+    if (tries < 400) setTimeout(() => fixPreview(file, video, tries + 1), 1500);
+  }).catch(() => { $("#previewDuration").textContent = "This format cannot be played in the preview. Takebloom can still edit it."; });
 }
 
 /* ---------- timeline ---------- */

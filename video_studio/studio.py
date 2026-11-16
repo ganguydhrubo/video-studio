@@ -446,6 +446,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")  # after an update the window must load the new page and token
             self.send_header("Content-Security-Policy", "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'")
             self.end_headers()
             self.wfile.write(body)
@@ -487,6 +488,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json(library.catalog())
         elif url.path == "/api/update":
             self._json(update_report())
+        elif url.path == "/api/share":
+            info = share_info(q.get("root", [""])[0])
+            self._json(info, 404 if info.get("error") else 200)
         elif url.path == "/api/styles":
             from video_studio.engines import styledna
 
@@ -528,6 +532,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Accept-Ranges", "bytes")
+        if path.suffix.lower() in (".js", ".html", ".css"):
+            self.send_header("Cache-Control", "no-cache")
         self.send_header("Content-Length", str(end - start + 1))
         if self.path.find("download=1") != -1:
             self.send_header("Content-Disposition", f'attachment; filename="{path.name}"')
@@ -587,6 +593,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(ai_install(str(body.get("key", ""))))
         if url.path == "/api/ai/use":
             return self._json(ai_use(str(body.get("key", "")), str(body.get("model", ""))))
+        if url.path == "/api/reveal":
+            result = reveal(str(body.get("path", "")))
+            return self._json(result, 400 if result.get("error") else 200)
+        if url.path == "/api/cover":
+            result = save_covers(str(body.get("root", "")), body.get("images") or {})
+            return self._json(result, 400 if result.get("error") else 200)
+        if url.path == "/api/preview":
+            result = preview_copy(str(body.get("path", "")))
+            return self._json(result, 400 if result.get("error") else 200)
         if url.path.startswith("/api/update/"):
             result = update_action(url.path.rsplit("/", 1)[-1], body)
             self._json(result, 400 if result.get("error") else 200)
@@ -655,6 +670,170 @@ def system_report(fresh: bool = False) -> dict:
     if (app_data_dir() / "system_report.json").is_file():
         return {**_system_report(), "checking": False}
     return background_check("system", _system_report)
+
+
+# ------------------------------------------------------------- sharing, covers, previews
+
+# Upload pages. Takebloom never signs in or posts for you: posting by itself needs each site's own developer
+# approval and your sign-in. It opens the site's upload page with the caption ready to paste.
+SHARE_SITES = [
+    {"key": "instagram", "name": "Instagram", "url": "https://www.instagram.com/", "how": "Press + (Create), choose Reel, pick the video. Paste the caption. Set the cover with Edit cover > Add from camera roll."},
+    {"key": "youtube", "name": "YouTube", "url": "https://www.youtube.com/upload", "how": "Choose the video. Paste the title and description. Under Thumbnail press Upload file and pick the YouTube cover (long videos only; Shorts pick a frame)."},
+    {"key": "tiktok", "name": "TikTok", "url": "https://www.tiktok.com/tiktokstudio/upload", "how": "Choose the video, paste the caption, then Edit cover to upload the cover picture."},
+    {"key": "facebook", "name": "Facebook", "url": "https://www.facebook.com/reels/create/", "how": "Add the video, paste the caption and pick the cover."},
+    {"key": "linkedin", "name": "LinkedIn", "url": "https://www.linkedin.com/feed/?shareActive=true", "how": "Press the video icon, add the video and paste the caption."},
+    {"key": "x", "name": "X", "url": "https://x.com/compose/post", "how": "Add the video with the picture icon and paste the post (280 characters)."},
+    {"key": "whatsapp", "name": "WhatsApp", "url": "https://web.whatsapp.com/", "how": "Use Share with apps on this PC if WhatsApp is installed, or open a chat and attach the video."},
+]
+COVER_SHAPES = {"reel": (1080, 1920), "grid": (1080, 1440), "youtube": (1280, 720)}
+
+
+def _project_root(raw: str) -> Path | None:
+    """A real project folder the person can reach from Studio (its project.json is servable)."""
+    if not raw:
+        return None
+    root = Path(raw)
+    return root if _safe_path(str(root / "project.json")) else None
+
+
+def _post_sections(text: str) -> dict[str, str]:
+    out, key, buf = {}, "", []
+    for line in text.splitlines():
+        if line.startswith("== ") and line.endswith(" =="):
+            if key:
+                out[key] = "\n".join(buf).strip()
+            key, buf = line.strip("= ").lower(), []
+        elif key and not line.startswith(("Cover image:", "Made locally")):
+            buf.append(line)
+    if key:
+        out[key] = "\n".join(buf).strip()
+    return out
+
+
+def share_info(raw_root: str) -> dict:
+    """What to share: the right video file, covers, and a ready caption per site (all made locally)."""
+    root = _project_root(raw_root)
+    if not root:
+        return {"error": "Project not found."}
+    data = read_json(root / "project.json", {}) or {}
+    exports = root / "exports"
+    files = sorted(exports.glob("*")) if exports.is_dir() else []
+    master = root / "output" / "master.mp4"
+    vertical = next((f for f in files if f.name.endswith(("_reels.mp4", "_shorts.mp4", "_tiktok.mp4"))), None)
+    wide = next((f for f in files if f.name.endswith("_youtube.mp4")), None)
+    video = vertical or wide or (master if master.exists() else None)
+    post = next((f for f in files if f.name.endswith("_post.txt")), None)
+    sections = _post_sections(post.read_text(encoding="utf-8")) if post else {}
+    plan = read_json(root / "build" / "edit_plan.json") or read_json(root / "build" / "plan.json") or {}
+    title = (plan.get("hook_text") or plan.get("title") or data.get("name") or "My video").strip()
+    tags = next((ln for sec in sections.values() for ln in sec.splitlines() if ln.startswith("#")), "")
+    insta = sections.get("instagram") or f"{title.title()}\n\n{tags}".strip()
+    yt = sections.get("youtube", "")
+    yt_title = next((ln.split(": ", 1)[1] for ln in yt.splitlines() if ln.startswith("Title")), title.title())
+    yt_desc = "\n".join(ln.removeprefix("Description: ") for ln in yt.splitlines() if not ln.startswith("Title")).strip() or tags
+    short = f"{title.title()} {' '.join(tags.split()[:5])}".strip()
+    captions = {
+        "instagram": insta, "youtube": f"{yt_title}\n\n{yt_desc}".strip(), "tiktok": sections.get("tiktok") or short,
+        "facebook": insta, "linkedin": insta.replace(" 👇", ""), "x": short[:280], "whatsapp": title.title(),
+    }
+    covers = {k: str(exports / f"cover_{k}.jpg") for k in COVER_SHAPES if (exports / f"cover_{k}.jpg").is_file()}
+    thumb = next((str(f) for f in files if f.name.endswith("_thumbnail.jpg")), "")
+    return {"root": str(root), "title": title, "video": str(video) if video else "", "wide_video": str(wide) if wide else "",
+            "master": str(master) if master.exists() else "", "thumbnail": thumb, "covers": covers,
+            "captions_file": next((str(f) for f in files if f.suffix == ".srt"), ""),
+            "sites": [{**site, "caption": captions[site["key"]]} for site in SHARE_SITES],
+            "shapes": {k: list(v) for k, v in COVER_SHAPES.items()}}
+
+
+def reveal(raw: str) -> dict:
+    """Show a project file selected in File Explorer, ready to drag into an upload page."""
+    path = _safe_path(raw)
+    if not path:
+        return {"error": "That file is not part of your Takebloom projects."}
+    if os.name == "nt":
+        subprocess.Popen(["explorer", f"/select,{path}"], creationflags=0x08000000)
+    return {"ok": True}
+
+
+def save_covers(raw_root: str, images: dict) -> dict:
+    """Save the covers drawn in the window (JPEG data URLs) next to the exports. The reel cover also becomes the
+    project's thumbnail; the automatic one is kept as *_thumbnail_auto.jpg."""
+    import base64
+
+    root = _project_root(raw_root)
+    if not root:
+        return {"error": "Project not found."}
+    exports = root / "exports"
+    exports.mkdir(parents=True, exist_ok=True)
+    saved = {}
+    for key, url in images.items():
+        if key not in COVER_SHAPES or not isinstance(url, str) or not url.startswith("data:image/jpeg;base64,"):
+            continue
+        raw = base64.b64decode(url.split(",", 1)[1], validate=True)
+        if len(raw) > 15 * 1024 * 1024 or raw[:3] != b"\xff\xd8\xff":
+            return {"error": "That cover image is not a JPEG picture."}
+        dest = exports / f"cover_{key}.jpg"
+        dest.write_bytes(raw)
+        saved[key] = str(dest)
+    if not saved:
+        return {"error": "No cover was received."}
+    if "reel" in saved or "youtube" in saved:
+        main = Path(saved.get("reel") or saved["youtube"])
+        thumb = next(iter(sorted(exports.glob("*_thumbnail.jpg"))), None)
+        if thumb:
+            auto = thumb.with_name(thumb.stem + "_auto.jpg")
+            if not auto.exists():
+                shutil.copy2(thumb, auto)
+            shutil.copy2(main, thumb)
+    return {"ok": True, "covers": saved}
+
+
+PREVIEWS: dict[str, dict] = {}
+PLAYABLE = {"h264", "vp8", "vp9", "av1"}
+
+
+def preview_copy(raw: str) -> dict:
+    """A small H.264 copy for the preview when this window cannot show the picture (HEVC iPhone video, ProRes...).
+    Made once in the background, kept in the projects folder (_previews), never used for the edit itself."""
+    from video_studio.engines import ff
+
+    path = _safe_path(raw)
+    if not path:
+        return {"error": "That file is not available to the preview."}
+    st = path.stat()
+    key = hashlib.sha1(f"{path}|{st.st_size}|{st.st_mtime_ns}".encode()).hexdigest()[:16]
+    dest = workspace() / "_previews" / f"{key}.mp4"
+    with CHECK_LOCK:
+        known = PREVIEWS.get(key)
+        if dest.is_file():
+            return {"ready": True, "path": str(dest)}
+        if known:
+            return dict(known)
+        try:
+            codec = (ff.stream(ff.probe(path), "video") or {}).get("codec_name", "")
+        except Exception:  # noqa: BLE001 - an unreadable file still gets one try at a preview copy
+            codec = ""
+        if codec in PLAYABLE:
+            return {"ready": True, "path": str(path), "codec": codec, "playable": True}
+        PREVIEWS[key] = {"making": True, "codec": codec}
+
+    def worker():
+        part = dest.with_suffix(".part.mp4")
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            ff.ff(["-y", "-i", str(path), "-map", "0:v:0", "-map", "0:a:0?", "-vf", "scale='if(gt(iw,ih),-2,min(540,iw))':'if(gt(iw,ih),min(540,ih),-2)'", "-c:v", "libx264",
+                   "-preset", "veryfast", "-crf", "27", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k",
+                   "-movflags", "+faststart", str(part)])
+            part.replace(dest)
+            with CHECK_LOCK:
+                PREVIEWS[key] = {"ready": True, "path": str(dest)}
+        except Exception as exc:  # noqa: BLE001
+            part.unlink(missing_ok=True)
+            with CHECK_LOCK:
+                PREVIEWS[key] = {"error": "A preview copy could not be made. Takebloom can still edit this video. " + str(exc)[:160]}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return {"making": True, "codec": codec}
 
 
 def machine_report(fresh: bool = False) -> dict:
