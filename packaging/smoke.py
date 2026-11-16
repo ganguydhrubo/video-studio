@@ -31,7 +31,9 @@ def main():
             assert health['app']=='VideoStudio'
             with opener.open('http://127.0.0.1:7894/') as response:
                 html=response.read().decode()
-            assert 'AI_ICONS=' in html and 'journey-art' in html and '__TOKEN__' not in html
+            assert 'AI_ICONS=' in html and 'id="quest"' in html and '/brief-assistant.js' in html and '__TOKEN__' not in html
+            with opener.open('http://127.0.0.1:7894/brief-assistant.js') as response:
+                assert b'/api/brief/interpret' in response.read()
             with opener.open('http://127.0.0.1:7894/api/projects') as response:
                 assert json.load(response)['projects']==[]
             try:
