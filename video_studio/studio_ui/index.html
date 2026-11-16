@@ -1875,6 +1875,12 @@ async function loadPC() {
   finally { busyCard.pc = false; }
 }
 $("#setupBtn") && ($("#setupBtn").onclick = async () => {
+  const pl = await api("/api/setup/plan");
+  if (pl.error) return $("#setupMsg").textContent = pl.error;
+  if (!pl.items.length) return $("#setupMsg").textContent = "Every editing tool is installed.";
+  const mb = n => n >= 1e9 ? (n / 1e9).toFixed(1) + " GB" : Math.max(1, Math.round(n / 1e6)) + " MB";
+  if (!await ask("Install the missing tools?", `<ol style="margin:0 0 8px;padding-left:20px">${pl.items.map(i => `<li>${esc(i.desc)}<br><span class="hint">${mb(i.size)} · licence ${esc(i.license)}</span></li>`).join("")}</ol>
+    <b>Total: about ${esc(pl.total_text)}</b>, all free. Everything goes into Takebloom's own folder; no admin rights and no system changes.<br><span class="hint">${esc(pl.folder)}</span>`, "Install all")) return;
   $("#setupMsg").textContent = "Installing… this can take a while; you can keep working.";
   const j = await api("/api/setup", { method: "POST", body: "{}" });
   if (j.error) return $("#setupMsg").textContent = j.error;

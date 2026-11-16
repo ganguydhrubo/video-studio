@@ -122,11 +122,12 @@ def cmd_doctor(args) -> int:
         return 0
     for t in tools:
         mark = paint("[ok]  ", "green") if t.ok else (paint("[req] ", "red") if t.required else paint("[opt] ", "yellow"))
-        line = f"{mark}{t.name:<22} {t.version or '-':<16} {t.role}"
+        src = (t.extra or {}).get("source", "")
+        line = f"{mark}{t.name:<22} {t.version or '-':<16} {src or '-':<9} {t.role}"
         console.info(line)
         if not t.ok:
             console.info(paint(f"        {t.problem}. Fix: {t.hint}", "dim"))
-    console.info(f"{paint('[ok]  ', 'green') if kokoro else paint('[opt] ', 'yellow')}{'Kokoro voice':<22} {'ready' if kokoro else 'not set up':<16} "
+    console.info(f"{paint('[ok]  ', 'green') if kokoro else paint('[opt] ', 'yellow')}{'Kokoro voice':<22} {'ready' if kokoro else 'not set up':<16} {'-':<9} "
                  f"natural offline voice (Apache-2.0)" + ("" if kokoro else "  Fix: video-studio install kokoro"))
     required_ok = all(t.ok for t in tools if t.required)
     if required_ok:
@@ -150,30 +151,33 @@ def cmd_install(args) -> int:
 
 def _install_kokoro(assume_yes: bool) -> int:
     from video_studio.engines import ml
-    from video_studio.util import run_interactive
 
     py = detect.system_python()
     if not py:
-        console.error("Kokoro needs Python 3.10+ (python.org).")
+        console.error("Kokoro needs Takebloom's Python first. Run `video-studio setup` (it installs it for you).")
         return 1
     d = ml.kokoro_dir()
     files = {"kokoro-v1.0.int8.onnx": "88 MB", "voices-v1.0.bin": "27 MB"}
     console.info("Install plan for the Kokoro voice (weights Apache-2.0, runtime kokoro-onnx MIT):")
-    console.info(f"  1. {py} -m pip install --user kokoro-onnx soundfile")
+    console.info(f"  1. add kokoro-onnx and soundfile to {py}")
     for f, size in files.items():
         console.info(f"  2. download {f} ({size}) from github.com/thewh1teagle/kokoro-onnx releases into {d}")
     if not confirm("Proceed?", assume_yes):
         return 1
-    if run_interactive([str(py), "-m", "pip", "install", "--user", "kokoro-onnx", "soundfile"]) != 0:
+    from video_studio import toolbox
+
+    if toolbox.pip_install(py, ["kokoro-onnx", "soundfile"]) != 0:
         console.error("pip install failed.")
         return 1
-    import urllib.request
-
     d.mkdir(parents=True, exist_ok=True)
     for f in files:
         if not (d / f).exists():
             console.step(f"Downloading {f}")
-            urllib.request.urlretrieve(f"https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/{f}", d / f)
+            try:
+                toolbox.download([f"https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/{f}"], d / f, label=f)
+            except toolbox.ToolboxError as exc:
+                console.error(f"{exc} {exc.hint}")
+                return 1
     ok = ml.kokoro_ready()
     (console.ok if ok else console.error)("Kokoro voice ready." if ok else "Kokoro check failed; run `video-studio doctor`.")
     return 0 if ok else 1
@@ -828,7 +832,11 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("setup", help="first run: scan this PC, install everything (asks once), explain what it can edit")
     s.add_argument("--yes", action="store_true", help="approve the install without asking")
     s.add_argument("--report", action="store_true", help="only scan and explain; install nothing")
-    s.set_defaults(func=lambda a: __import__("video_studio.setup", fromlist=["run_setup"]).run_setup(a.yes, a.report))
+    s.add_argument("--skip", nargs="*", default=[], help="leave these out of the plan, e.g. --skip blender")
+    s.add_argument("--with", dest="extra", nargs="*", default=[], choices=["ollama"],
+                   help="also install optional items: ollama (offline AI editor, about 3 GB)")
+    s.set_defaults(func=lambda a: __import__("video_studio.setup", fromlist=["run_setup"]).run_setup(
+        a.yes, a.report, tuple(a.skip), tuple(a.extra)))
 
     s = sub.add_parser("install", help="install a missing tool (shows the plan and asks first)")
     s.add_argument("tool", choices=[*detect.INSTALL_RECIPES, "kokoro"])

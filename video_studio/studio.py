@@ -258,10 +258,10 @@ def install_info(key: str) -> dict:
     if not recipe:
         return {"blocked": "No automatic install for this one."}
     try:
-        cmd = detect.install_plan(key)
+        summary = detect.install_summary(key)  # portable tools: the pinned download; npm tools: the exact command
     except ToolError as exc:
         return {"blocked": str(exc), "hint": exc.hint}
-    return {"desc": recipe["desc"], "license": recipe["license"], "command": " ".join(cmd)}
+    return {"desc": recipe["desc"], "license": recipe["license"], "command": summary}
 
 
 def ai_install(key: str) -> dict:
@@ -476,6 +476,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(doctor())
         elif url.path == "/api/ai":
             self._json(ai_status(q.get("fresh", ["0"])[0] == "1"))
+        elif url.path == "/api/setup/plan":
+            self._json(setup_plan())
         elif url.path == "/api/system":
             self._json(system_report(q.get("fresh", ["0"])[0] == "1"))
         elif url.path == "/api/machine":
@@ -655,8 +657,20 @@ def _system_report() -> dict:
         cached = {"scan": s, "report": setup.report(s)}
         write_json(app_data_dir() / "system_report.json", cached)
     s = cached["scan"]
-    missing = (not (s.get("tools", {}).get("ffmpeg", {}).get("ok"))) or (not s.get("python")) or not all((s.get("packages") or {}).values()) or not all((s.get("models") or {}).values())
-    return {**cached, "missing": bool(missing)}
+    try:
+        missing = bool(setup.plan(s))  # one source of truth: the same plan the Setup button installs
+    except Exception:  # noqa: BLE001 - an old cached report must not break the System page
+        missing = True
+    return {**cached, "missing": missing}
+
+
+def setup_plan() -> dict:
+    """The one-click plan (every item with size and licence) shown before Setup runs. Read from the last scan."""
+    from video_studio import setup
+
+    cached = read_json(app_data_dir() / "system_report.json", None)
+    s = cached["scan"] if cached else setup.scan()
+    return setup.plan_summary(setup.plan(s))
 
 
 def system_report(fresh: bool = False) -> dict:
