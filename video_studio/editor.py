@@ -143,26 +143,27 @@ def _speed_file() -> Path:
 
 def _predict_time(proj: Project) -> None:
     """Say how long this edit will take, from how long edits actually took on THIS computer."""
+    import math
+
     from video_studio.util import read_json
 
-    sp = read_json(_speed_file(), {}) or {}
-    footage = float((proj.state.get("ingest") or {}).get("seconds_of_footage") or 0)
-    if sp.get("runs") and footage:
-        est = sp["fixed"] + sp["per_second"] * footage
-        console.info(f"    Estimated time: about {fmt_seconds(est)} (learned from your last {sp['runs']} edit(s) on this PC)")
+    runs = (read_json(_speed_file(), {}) or {}).get("history") or []
+    footage = float((proj.state().get("ingest") or {}).get("seconds_of_footage") or 0)
+    if not runs or footage <= 0:
+        return
+    near = min(runs, key=lambda r: abs(math.log(footage / r["footage"])))  # the past edit most like this one
+    est = near["seconds"] * (0.5 + 0.5 * footage / near["footage"])       # about half the work scales with length
+    console.info(f"    Estimated time: about {fmt_seconds(est)} (from your last {len(runs)} edit(s) on this PC)")
 
 
 def _learn_speed(proj: Project, seconds: float) -> None:
     from video_studio.util import read_json, write_json
 
-    footage = float((proj.state.get("ingest") or {}).get("seconds_of_footage") or 0)
+    footage = float((proj.state().get("ingest") or {}).get("seconds_of_footage") or 0)
     if footage <= 0:
         return
-    sp = read_json(_speed_file(), {}) or {}
-    n = int(sp.get("runs", 0))
-    rate = max(0.0, seconds - 240.0) / footage           # ~4 min is fixed work (AI replies, finishing a ~55 s reel)
-    k = 1.0 / min(n + 1, 5)                               # a moving average: recent edits count more
-    write_json(_speed_file(), {"runs": n + 1, "fixed": 240.0, "per_second": round((1 - k) * float(sp.get("per_second", rate)) + k * rate, 3)})
+    runs = (read_json(_speed_file(), {}) or {}).get("history") or []
+    write_json(_speed_file(), {"history": [*runs, {"footage": round(footage, 1), "seconds": round(seconds)}][-8:]})
 
 
 # ------------------------------------------------------------------ ingest
