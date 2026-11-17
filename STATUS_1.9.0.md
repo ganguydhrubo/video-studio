@@ -31,6 +31,7 @@ where Takebloom still speaks. No generation features. `ai.py` untouched. No UI c
   - Zira 65 s clean: mean 71 -> 60 ms, max 838 -> 345 ms, words over 150 ms 14 -> 8.
   - David 68 s with loud pink noise (-30 dB): mean 147 -> 134 ms, max 746 -> 306 ms.
   - Two voices 165 s with noise (-38 dB): mean 101 -> 95 ms, max unchanged 689 ms (no pause before that word).
+  - Zira 65 s with large-v3-turbo (the model this PC really picks): mean 77 -> 47 ms, max 463 -> 136 ms.
 
 ### 3. Karaoke highlight ran early after every pause: FIXED (`engines/captions.py`)
 - ASS `\kf` times run one after another. 1.8.1 used only each word's length, so every pause inside a caption line
@@ -44,6 +45,8 @@ where Takebloom still speaks. No generation features. `ai.py` untouched. No UI c
   - Zira 65 s: normal 27.1 s, b8 23.6 s (-13%). Words 182 vs 181: batched LOST one real word ("month, and tell").
   - David 68 s noisy: normal 30.5 s, b8 24.0 s (-21%). Words equal (182, same 179 correct).
   - 165 s noisy: normal 60.2 s, b8 51.6 s (-14%), b4 + 8 threads 43.1 s (-28%). Words 421 vs 422 (one more right).
+  - large-v3-turbo, Zira 65 s: normal 56.1 s, b4 46.3 s (-17%). Batched lost the SAME word ("and"), and one
+    word start was 1.16 s off (normal max 0.46 s). Peak RAM 1.86 GB both.
   - Start error is a little worse batched (165 s: 101 vs 108 ms mean). Peak RAM 0.71 GB vs 1.24 GB at b8.
   - Threads 8 vs 14 in normal mode: 3-4% only, within noise. Not changed.
 - Decision: faster, but not "drops nothing" (lost a word on one clip), and a hallucination guard in batched mode
