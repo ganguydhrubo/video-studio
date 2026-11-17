@@ -436,6 +436,20 @@ def available() -> tuple[bool, str]:
     return True, ""
 
 
+_READY: dict = {}
+
+
+def ready_note() -> str:
+    """For the live "Takebloom will" card: '' when motion can be drawn, else the plain reason (checked once a minute)."""
+    if not _READY or time.time() - _READY.get("at", 0) > 60:
+        try:
+            ok, why = available()
+        except Exception:  # never let a tool check break the prompt card
+            ok, why = True, ""
+        _READY.update(at=time.time(), note="" if ok else why)
+    return _READY["note"]
+
+
 def _key(html: str, fps: int, scale: float) -> str:
     vendor = resource_path("motion_templates", "vendor", "three-motion.min.js")
     tag = f"{VERSION}|{fps}|{scale}|{vendor.stat().st_size if vendor.exists() else 0}|"

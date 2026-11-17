@@ -101,3 +101,28 @@
 - A song in the drop is used as the music, from its start. Only one song per film. With "no music" in the prompt and a song in the drop, the song is still used.
 - The prompt is read by fixed word rules (English with some common Hinglish words), not by AI, so it works offline and instantly. Words outside the rules are not turned into settings, but the AI editor still reads the whole prompt for the story. Unusual phrasing may be missed; the "Takebloom will" list shows exactly what was understood before the edit starts. Fine-tune choices always win over the prompt.
 - Not possible in an edit yet, and said so when asked: 3D objects or 3D text, slow motion inside an edit (use Restyle), a logo or watermark placement, a new voice-over, stock footage, created or AI-generated footage. Background removal is the separate Remove background tool.
+
+## Motion graphics and 3D 1.9.0
+
+- Motion graphics are asked for in the prompt ("3D title that spins", "neon lower third with my name", "kinetic text",
+  "end card", "confetti at the end", "floating 3D hearts", "sparkles", "light leaks"), or added lightly by some
+  templates (wedding, travel, product advert, viral short, event recap, testimonial, brand film, documentary, music
+  video, company update, fitness). "No graphics" or "no titles" turns them off. The "Takebloom will" card lists each piece.
+- They are drawn by HyperFrames (free, Apache-2.0) in a hidden browser and laid over the film. HyperFrames needs
+  Node.js 22+ and its one-time install (`video-studio install hyperframes`). Without them the film is still made and the
+  log and the prompt card say that motion was skipped and how to set it up.
+- 3D titles are real extruded letters (three.js) for English letters, digits and common signs only. A title in Hindi,
+  Bengali or another Indian script is shown as a flat animated title instead, and the log says so.
+- 3D objects are simple shapes made in code (gem, diamond, cube, ring, knot, ball, star, heart). There are no model
+  files, no logos in 3D and no 3D scenes built from your footage.
+- The name tag needs a name. Write "name: Your Name" (and "place: Somewhere" if you like). With only "my name", the
+  Windows user name is used when it looks like a name; otherwise the name tag is left out and the log says so.
+- Placement is automatic and cannot be chosen yet. Pieces avoid the film's own giant-text moments, B-roll cutaways and
+  your pictures. If there is no free moment (very short or very busy films), a piece is left out and the log says why.
+  Captions pause under titles, kinetic words and the end card. The name tag sits just above the captions.
+- Kinetic text uses the edit's key (emphasis) words. If none of them lands in a free moment, none is shown.
+- No new transitions were added. Custom FFmpeg transitions (gl-transitions style) were measured at about 3.6 seconds
+  per frame on the release-test laptop, far too slow. Light leaks over cuts are offered instead.
+- Colour looks are applied to the whole picture, so a black-and-white look also turns a neon title grey.
+- Rendered pieces are cached by their content in the app's cache folder (`cache\motion`, kept under 600 MB), so the
+  same title in a re-edit costs nothing.

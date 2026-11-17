@@ -42,7 +42,10 @@ class Reading(unittest.TestCase):
         self.assertEqual(understand("cooking video for youtube")["options"]["aspect"], "16:9")
 
     def test_what_cannot_be_done_is_said(self):
-        r = understand("add 3D text and AI-generated scenes, green screen, slow motion")
+        from video_studio import motion
+
+        with patch.object(motion, "ready_note", return_value=""):   # HyperFrames set up (its absence adds one more line)
+            r = understand("add 3D text and AI-generated scenes, green screen, slow motion")
         self.assertEqual(len(r["cannot"]), 3)   # 3D text is drawn since 1.9.0 (motion.py)
         self.assertEqual(r["options"]["graphics"], "title3d")
         self.assertTrue(any("3D" in c for c in understand("turn my video into 3d")["cannot"]))

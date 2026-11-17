@@ -139,6 +139,11 @@ def understand(brief: str) -> dict:
         options["graphics"] = "off"
     elif wish["kinds"]:
         options["graphics"] = ",".join(wish["kinds"])
+        from video_studio import motion
+
+        note = motion.ready_note()
+        if note:
+            cannot.append(note + " The film is still made, without the motion graphics.")
     said += wish["said"]
     return {"options": options, "understood": said, "cannot": cannot, "questions": intent.get("questions", []),
             "target_seconds": intent.get("target_seconds")}

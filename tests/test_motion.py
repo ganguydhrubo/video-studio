@@ -14,6 +14,19 @@ from video_studio.understand import edit_args, motion_wishes, understand
 
 
 class PromptWords(unittest.TestCase):
+    def setUp(self):
+        self.ready = patch.object(motion, "ready_note", return_value="")
+        self.ready.start()
+
+    def tearDown(self):
+        self.ready.stop()
+
+    def test_the_card_says_when_hyperframes_is_missing(self):
+        with patch.object(motion, "ready_note", return_value="Motion graphics need HyperFrames, which is free."):
+            r = understand("confetti at the end")
+        self.assertTrue(any("HyperFrames" in c and "still made" in c for c in r["cannot"]))
+        self.assertEqual(r["options"]["graphics"], "confetti")
+
     def test_3d_title_lower_third_and_confetti(self):
         r = understand('reel with a 3D title "Tea Time" that spins, neon lower third with my name Asha Rao, confetti at the end')
         o = r["options"]
