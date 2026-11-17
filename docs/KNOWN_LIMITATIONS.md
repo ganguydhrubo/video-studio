@@ -124,5 +124,9 @@
 - No new transitions were added. Custom FFmpeg transitions (gl-transitions style) were measured at about 3.6 seconds
   per frame on the release-test laptop, far too slow. Light leaks over cuts are offered instead.
 - Colour looks are applied to the whole picture, so a black-and-white look also turns a neon title grey.
+- Speed on the release-test laptop (i7-13620H, Intel graphics): all new pieces of a film are drawn together in one
+  browser run, about 2.5 to 4 seconds of computer time per second of motion. Three pieces added 16 to 27 seconds
+  to a 4 to 7 minute edit; six pieces added 43 seconds. Pieces are drawn at most 30 times a second; confetti and
+  sparkles at half size and light leaks at a third, then scaled up.
 - Rendered pieces are cached by their content in the app's cache folder (`cache\motion`, kept under 600 MB), so the
   same title in a re-edit costs nothing.
