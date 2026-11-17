@@ -31,6 +31,21 @@ Video Studio's own code is MIT. It **does not bundle** third-party tools except 
 | faster-whisper 'small' model (Systran) | default speech model | MIT | 486 MB from Hugging Face on first setup; 'large-v3-turbo' (1.6 GB, MIT) only with `setup --with speech-large` |
 | MediaPipe selfie multiclass model | cut-out for words behind you | Apache-2.0 | 16 MB from storage.googleapis.com |
 
+## Free stock footage (optional, 1.9.0)
+
+Takebloom bundles no stock footage and no stock code. With the person's own free key (`stock.pexels_key`,
+`stock.pixabay_key`, or the `PEXELS_API_KEY` / `PIXABAY_API_KEY` environment variables) an edit can search and download
+a few clips at the person's request. Only `urllib` from Python's standard library is used.
+
+| Source | Content licence | What Takebloom does to respect the terms |
+|---|---|---|
+| Pexels API (`api.pexels.com/v1/videos/search`) | [Pexels Licence](https://www.pexels.com/license/): free to use and modify, including commercially; no attribution required. Not allowed: selling unaltered copies, or offering the clips as a stock or wallpaper service. | Clips are used only inside the person's own film. Every clip used is listed in `exports/credits.txt` as "Video by NAME on Pexels" with the clip page, as the [API guidelines](https://www.pexels.com/api/documentation/) ask ("credit when possible" and show where content comes from). Default limits: 200 requests an hour, 20,000 a month. |
+| Pixabay API (`pixabay.com/api/videos/`) | [Pixabay Content Licence](https://pixabay.com/service/license-summary/): free to use, including commercially; no attribution required. Not allowed: selling or distributing the content on a standalone basis. | Search results are cached for 24 hours as the [API docs](https://pixabay.com/api/docs/) ask; clips are downloaded (not hotlinked) in a small size (never the 4K "large" copy); the source is named in the log and in `exports/credits.txt`. Default limit: 100 requests a minute. |
+
+The keys are free and need no payment. The person gets them on the sites themselves; Takebloom never asks for an
+account. Keys are kept in the app settings file, never in code or logs (`video-studio config list` shows them only as
+"(set, hidden)").
+
 ## Rejected or flagged during research (see research/raw_findings.md)
 
 - **Remotion:** not open source (company licence above 3 employees).

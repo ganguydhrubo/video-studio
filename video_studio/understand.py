@@ -69,6 +69,8 @@ RULES: list[tuple[str, str, object, str]] = [
     (r"\b(wipes?|slide transitions?)\b", "transition", "slide", "Transitions: slides and wipes"),
     (r"\b(flash|whip)\b", "transition", "flash", "Transitions: flash"),
     (r"\b(no transitions?|hard cuts?|jump cuts?)\b", "transition", "minimal", "Transitions: straight cuts"),
+    (r"\b(hard cuts? only|only hard cuts?|no [jl][- ]?cuts?|no split edits?|no sound (?:lead|overlap)s?)\b", "hard_cuts", True,
+     "Joins: hard cuts only, sound and picture change together (no J-cuts or L-cuts)"),
     # captions
     (r"\b(no (?:captions?|subtitles?|text)|without (?:captions?|subtitles?))\b", "captions", "none", "Captions: none"),
     (r"\b(karaoke|word by word|highlight(?:ed)? words?)\b", "captions", "karaoke", "Captions: word-by-word highlight"),
@@ -95,8 +97,6 @@ CANNOT: list[tuple[str, str]] = [
                               "Your film gets motion titles, zooms and effects instead."),
     (r"\b(ai[- ]generated|generate (?:a |new )?(?:video|clip|scene|footage|image)s?|text to video|image to video|avatars?|create (?:new )?(?:scenes?|footage|clips?))\b",
      "Takebloom does not create new footage. It edits the videos and pictures you give it."),
-    (r"\b(stock (?:footage|video|clips?)|download (?:clips?|videos?|footage))\b",
-     "Stock footage is not downloaded. Add your own extra clips or pictures to the drop and they are used."),
     (r"\b(remove (?:the )?background(?! noise| music| sound)|green ?screen|background removal|change (?:the )?background(?! music))\b",
      "Background removal is its own tool: choose Remove background, below the main editor."),
     (r"\b(voice ?over|narration|new voice|ai voice)\b",
@@ -131,6 +131,15 @@ def understand(brief: str) -> dict:
     if intent.get("hook_seconds"):
         said.append(f"Opening hook of {intent['hook_seconds']:g} seconds (this does not shorten the film)")
     cannot = [msg for pattern, msg in CANNOT if re.search(pattern, text)]
+    from video_studio import stock   # free stock B-roll: only with the person's own free key (stock.py)
+
+    if stock.ASK.search(text):
+        found = stock.keys() if stock.has_key() else {}
+        if found:
+            options["stock"] = True
+            said.append(stock.WILL.format(sites=stock.sites_text(found)))
+        else:
+            cannot.append(stock.NO_KEY)
     return {"options": options, "understood": said, "cannot": cannot, "questions": intent.get("questions", []),
             "target_seconds": intent.get("target_seconds")}
 
@@ -138,7 +147,8 @@ def understand(brief: str) -> dict:
 FLAG = {"aspect": "--aspect", "template": "--template", "grade": "--grade", "pacing": "--pacing", "fx": "--fx",
         "motion": "--motion", "transition": "--transition", "captions": "--captions", "caption_script": "--caption-script",
         "music": "--music", "quality": "--quality", "target": "--target"}
-SWITCH = {"no_music": "--no-music", "keep_silences": "--keep-silences", "no_reframe": "--no-reframe"}
+SWITCH = {"no_music": "--no-music", "keep_silences": "--keep-silences", "no_reframe": "--no-reframe",
+          "hard_cuts": "--hard-cuts", "stock": "--stock"}
 EMPTY = (None, "", "auto")
 
 

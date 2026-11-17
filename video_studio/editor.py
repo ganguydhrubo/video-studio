@@ -86,6 +86,7 @@ def run_cli(args) -> int:
                             "fx": getattr(args, "fx", None) or "auto", "like": getattr(args, "like", None),
                             "broll": getattr(args, "broll", None),
                             "pictures": [str(p.resolve()) for p in dropped["pictures"] if p.is_file()],
+                            "hard_cuts": bool(getattr(args, "hard_cuts", False)), "stock": bool(getattr(args, "stock", False)),
                             "platforms": args.platform}
     proj.save(data)
     from video_studio.cli import _apply_overrides
@@ -1082,6 +1083,12 @@ def cut(proj: Project) -> dict:
     manifest = {"source": str(src), "fps": fps, "size": [w, h], "total": round(total, 3), "pieces": out_pieces,
                 "segments": [{"start": x["src_start"], "end": x["src_end"]} for x in out_pieces],
                 "colour": stats, "grade": grade, "look_grade": look_grade, "cut": str(cut_file)}
+    try:  # J/L-cuts (jlcut.py): sound leads or trails the picture at changes of clip or moment
+        from video_studio import jlcut
+
+        manifest.update(jlcut.apply(proj, p, tr["words"], out_pieces, audio_src, cut_file))
+    except Exception as exc:  # noqa: BLE001 - the plain cut is always a safe fallback
+        console.warn(f"J/L-cuts skipped ({str(exc)[:100]}); plain cuts are used.")
     proj.write("edit_manifest.json", manifest)
     proj.mark("cut", "done", pieces=len(out_pieces), seconds=round(total, 1))
     console.ok(f"Cut to {fmt_seconds(total)} ({len(out_pieces)} pieces, colour {stats or 'unchanged'})")
@@ -1182,7 +1189,9 @@ def render(proj: Project) -> Path:
                                      top=bool(m.get("caption_place", {}).get("top")) if h > w else False)
     # cutaways go in after the caption position was measured on YOUR face; captions are then burned on top
     cut_video = _broll_pass(proj, m, p, cut_video, splan if fx != "off" else {}, w, h, total)
-    from video_studio import pictures
+    from video_studio import pictures, stock
+
+    cut_video = stock.apply_pass(proj, m, p, cut_video, splan if fx != "off" else {}, w, h, total)
 
     cut_video = pictures.apply_pass(proj, m, cut_video, splan if fx != "off" else {}, w, h, total)
     m["srt"] = str(srt) if srt else ""
@@ -1197,7 +1206,10 @@ def render(proj: Project) -> Path:
     audio_dir = proj.build / "audio"
     audio_dir.mkdir(exist_ok=True)
     voice = audio_dir / "voice_cut.wav"
-    ff.ff(["-i", m["cut"], "-vn", "-c:a", "pcm_s16le", "-ar", "48000", str(voice)])
+    if m.get("voice") and Path(m["voice"]).is_file():
+        voice = Path(m["voice"])  # the cut's voice with its J/L-cuts (jlcut.py)
+    else:
+        ff.ff(["-i", m["cut"], "-vn", "-c:a", "pcm_s16le", "-ar", "48000", str(voice)])
     music_path = None
     tl_music = tl.get("music") or {}
     if s.get("music_enabled", True) and tl_music.get("on", True):
