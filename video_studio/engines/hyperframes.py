@@ -23,6 +23,8 @@ QUALITY = {"draft": "draft", "standard": "looks", "high": "delivery"}
 
 def _vendored_gsap() -> Path | None:
     roots = [Path(os.environ.get("LOCALAPPDATA", "")) / "npm-cache" / "_npx", Path.home() / ".npm" / "_npx"]
+    if os.environ.get("npm_config_cache"):  # Takebloom's portable Node keeps its npm cache in the tools folder
+        roots.insert(0, Path(os.environ["npm_config_cache"]) / "_npx")
     for root in roots:
         if root.exists():
             hits = sorted(root.glob("*/node_modules/hyperframes/dist/vendor/npm/gsap@*/dist/gsap.min.js"), reverse=True)

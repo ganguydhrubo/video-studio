@@ -46,6 +46,12 @@ class Provider:
     supports_images: bool = False
 
     def path(self) -> Path | None:
+        if self.exe == "ollama":
+            from video_studio import toolbox
+
+            portable = toolbox.ollama()  # Takebloom's own copy (setup --with ollama)
+            if portable:
+                return portable
         return which(self.exe, [ROAMING_NPM, Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Ollama"])
 
     def model(self) -> str:
@@ -96,7 +102,16 @@ class Claude(Provider):
     def __init__(self) -> None:
         super().__init__("claude", "Claude Code", "claude", "video-studio install claude", ["auth", "login"], True)
 
+    @staticmethod
+    def _serve(exe: Path) -> None:
+        """A portable Ollama has no tray app to run its server; start it quietly when needed."""
+        from video_studio import toolbox
+
+        if toolbox.is_portable(exe):
+            toolbox.ensure_ollama_server(exe)
+
     def _fill_status(self, exe: Path, st: Status) -> None:
+        self._serve(exe)
         res = run([str(exe), "--version"], check=False, timeout=30)
         st.version = (res.stdout or "").strip().split(" ")[0]
         res = run([str(exe), "auth", "status", "--json"], check=False, timeout=30)
@@ -137,7 +152,16 @@ class Codex(Provider):
     def __init__(self) -> None:
         super().__init__("codex", "OpenAI Codex", "codex", "video-studio install codex", ["login"], True)
 
+    @staticmethod
+    def _serve(exe: Path) -> None:
+        """A portable Ollama has no tray app to run its server; start it quietly when needed."""
+        from video_studio import toolbox
+
+        if toolbox.is_portable(exe):
+            toolbox.ensure_ollama_server(exe)
+
     def _fill_status(self, exe: Path, st: Status) -> None:
+        self._serve(exe)
         res = run([str(exe), "--version"], check=False, timeout=30)
         st.version = (res.stdout or "").strip().split()[-1] if res.stdout else ""
         res = run([str(exe), "login", "status"], check=False, timeout=30)
@@ -223,7 +247,16 @@ class Ollama(Provider):
     def __init__(self) -> None:
         super().__init__("ollama", "Ollama (local models)", "ollama", "video-studio install ollama", [], False)
 
+    @staticmethod
+    def _serve(exe: Path) -> None:
+        """A portable Ollama has no tray app to run its server; start it quietly when needed."""
+        from video_studio import toolbox
+
+        if toolbox.is_portable(exe):
+            toolbox.ensure_ollama_server(exe)
+
     def _fill_status(self, exe: Path, st: Status) -> None:
+        self._serve(exe)
         res = run([str(exe), "--version"], check=False, timeout=30)
         st.version = (res.stdout or res.stderr or "").strip().split()[-1] if (res.stdout or res.stderr) else ""
         res = run([str(exe), "list"], check=False, timeout=30)
@@ -249,7 +282,13 @@ class Ollama(Provider):
         model = self.model()
         if not model:
             raise ToolError("No Ollama model available.", "ollama pull qwen2.5:7b")
-        res = run([str(self.path()), "run", model], input_text=prompt, timeout=timeout, check=False)
+        exe = self.path()
+        self._serve(exe)
+        from video_studio import toolbox
+
+        # the pinned portable Ollama supports --hidethinking (Qwen3 would otherwise print its reasoning)
+        extra = ["--hidethinking"] if toolbox.is_portable(exe) else []
+        res = run([str(exe), "run", model, *extra], input_text=prompt, timeout=timeout, check=False)
         if res.returncode != 0:
             raise ToolError(f"Ollama exited {res.returncode}: {(res.stderr or '')[-300:]}")
         return res.stdout
