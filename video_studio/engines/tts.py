@@ -32,7 +32,13 @@ public class VsSpeaker {
       s.SetOutputToWaveFile(path, new SpeechAudioFormatInfo(24000, AudioBitsPerSample.Sixteen, AudioChannel.Mono));
       s.SpeakProgress += (o, e) => words.Add(e.AudioPosition.TotalMilliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture)
                                              + "\t" + e.CharacterPosition + "\t" + e.CharacterCount + "\t" + e.Text.Replace("\t", " "));
-      s.Speak(text);
+      // A bookmark after the last word gives where SAPI thinks the audio ends, on the same (wrong) clock as the
+      // word positions. Python divides the real file length by it to get the true scale (see sapi_words).
+      s.BookmarkReached += (o, e) => words.Add("#END\t" + e.AudioPosition.TotalMilliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
+      var p = new PromptBuilder();
+      p.AppendText(text);
+      p.AppendBookmark("vs_end");
+      s.Speak(p);
       s.SetOutputToNull();
     }
     return String.Join("\n", words);
@@ -82,7 +88,8 @@ def synthesize(lines: list[dict], out_dir: Path, voice: str, rate: int, speed: f
     todo = []
     for line in lines:
         text = speakable(line["text"])
-        key = sha([engine, voice, rate, speed, text])
+        # "t2": SAPI word times before 1.9.0 were 1.5x too big, so old cached SAPI lines are made again
+        key = sha([engine, voice, rate, speed, text] + (["t2"] if engine == "sapi" else []))
         wav = out_dir / f"{line['id']}_{key}.wav"
         meta = out_dir / f"{line['id']}_{key}.json"
         cached = read_json(meta)
@@ -175,18 +182,64 @@ def _sapi(todo: list[dict], voice: str, rate: int) -> dict:
     raw = json.loads(Path(str(items) + ".result.json").read_text(encoding="utf-8-sig"))
     if isinstance(raw, dict):
         raw = [raw]
+    paths = {t["id"]: t["out"] for t in todo}
     out = {}
     for entry in raw:
-        words = []
-        for row in (entry.get("words") or "").splitlines():
-            parts = row.split("\t")
-            if len(parts) == 4:
-                words.append({"text": parts[3], "start": float(parts[0]) / 1000.0})
-        for i, w in enumerate(words):
-            nxt = words[i + 1]["start"] if i + 1 < len(words) else w["start"] + 0.45
-            w["end"] = max(w["start"] + 0.08, min(nxt, w["start"] + 0.9))
+        words = sapi_words(entry.get("words") or "", _wav_seconds(Path(paths.get(entry["id"], ""))))
         out[entry["id"]] = {"words": words, "source": "sapi", "voice": name}
     return out
+
+
+# System.Speech reports SpeakProgress/Bookmark AudioPosition as if the audio were 16 kHz, whatever format the file is
+# written in (measured on Zira and David at 8, 16, 22.05, 24, 44.1 and 48 kHz: positions grow exactly with the rate).
+# We write 24 kHz, so raw positions are 1.5 times too big. Used only when the end bookmark is missing.
+SAPI_CLOCK_SCALE = 16000 / 24000
+
+
+def _wav_seconds(path: Path) -> float:
+    import wave
+
+    try:
+        with wave.open(str(path), "rb") as wf:
+            return wf.getnframes() / float(wf.getframerate())
+    except (OSError, EOFError, wave.Error):
+        try:
+            return ff.duration(path)
+        except Exception:  # noqa: BLE001 - no length known: the fixed scale is used
+            return 0.0
+
+
+def sapi_words(rows: str, duration: float) -> list[dict]:
+    """SAPI SpeakProgress rows (ms, char pos, char count, text) + the "#END" bookmark -> true word times in seconds.
+
+    The scale is the real audio length divided by the bookmark's position (the same wrong clock as the words), so it
+    holds for any voice or output format; without a usable bookmark the measured 16 kHz clock is assumed."""
+    words, end_ms = [], 0.0
+    for row in rows.splitlines():
+        parts = row.rstrip("\r").split("\t")
+        if parts[0] == "#END" and len(parts) == 2:
+            try:
+                end_ms = float(parts[1])
+            except ValueError:
+                pass
+        elif len(parts) == 4:
+            try:
+                words.append({"text": parts[3], "start": float(parts[0]) / 1000.0})
+            except ValueError:
+                continue
+    scale = SAPI_CLOCK_SCALE
+    if end_ms > 0 and duration > 0 and 0.25 <= duration / (end_ms / 1000.0) <= 4.0:
+        scale = duration / (end_ms / 1000.0)
+    for w in words:
+        w["start"] = round(w["start"] * scale, 3)
+        if duration > 0:
+            w["start"] = min(w["start"], max(0.0, duration - 0.1))
+    for i, w in enumerate(words):
+        nxt = words[i + 1]["start"] if i + 1 < len(words) else w["start"] + 0.45
+        w["end"] = round(max(w["start"] + 0.08, min(nxt, w["start"] + 0.9)), 3)
+        if duration > 0 and i + 1 == len(words):
+            w["end"] = round(max(w["start"] + 0.05, min(w["end"], duration)), 3)
+    return words
 
 
 def estimate_words(text: str, duration: float) -> list[dict]:
