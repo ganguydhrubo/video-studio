@@ -1,6 +1,8 @@
 /* "Takebloom will…": what the prompt sets, shown live while the person types (POST /api/brief/understand, local and
    instant), plus a plain list of what cannot be done, so nothing asked for is silently skipped. A format named in
-   the prompt moves the format buttons too, unless the person has picked a format by hand. */
+   the prompt moves the format buttons too, unless the person has picked a format by hand.
+   Choices learned from earlier edits (video_studio/signals.py) are listed too, with the real count behind each,
+   for the choices the prompt and Fine-tune leave open. */
 (() => {
   const brief = document.querySelector("#brief");
   if (!brief || typeof api !== "function" || typeof S === "undefined") return;
@@ -23,13 +25,18 @@
     const b = document.querySelector(`#aspect [data-v="${a}"]`);
     if (b) { S.aspectAuto = true; b.click(); S.aspectAuto = false; }
   }
+  const val = id => { const el = document.querySelector("#" + id); return el ? el.value : ""; };
+  const form = () => ({pacing: val("pacing"), captions: val("captions"), music: val("music"), fx: val("fx"), grade: val("grade"),
+    transition: val("transition"), template: val("template"), like: val("like")});
+  const hasSong = () => (S.files || []).some(f => /\.(mp3|wav|m4a|aac|flac|ogg)$/i.test(f.name || ""));
   async function check() {
     const text = brief.value.trim(), my = ++seq;
-    if (!text) { box.innerHTML = EMPTY_TEXT; return; }
     try {
-      const r = await api("/api/brief/understand", {method: "POST", body: JSON.stringify({brief: text})});
+      const r = await api("/api/brief/understand", {method: "POST", body: JSON.stringify({brief: text, options: form(), has_song: hasSong()})});
       if (my !== seq) return;
-      const will = r.understood || [], no = r.cannot || [], qs = r.questions || [];
+      const learned = (r.learned || []).map(x => x.line);
+      if (!text && !learned.length) { box.innerHTML = EMPTY_TEXT; return; }
+      const will = [...(text ? r.understood || [] : []), ...learned], no = r.cannot || [], qs = r.questions || [];
       box.innerHTML = (will.length ? `<h4>Takebloom will</h4><ul>${will.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`
                                    : `<h4>Takebloom will</h4><p style="margin:0 0 6px">Decide the look, pace, captions and music by itself. Your words still guide the story.</p>`)
         + (no.length ? `<h4>Cannot do yet</h4><ul class="no">${no.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "")
@@ -40,5 +47,10 @@
   }
   brief.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(check, 300); });
   document.querySelectorAll("#chips").forEach(c => c.addEventListener("click", () => { clearTimeout(timer); timer = setTimeout(check, 50); }));
+  document.querySelectorAll("#advBox, #lookRow").forEach(c => c.addEventListener("change", () => { clearTimeout(timer); timer = setTimeout(check, 50); }));
+  addEventListener("hashchange", () => { if (/^#\/(create)?$/.test(location.hash || "#/")) { clearTimeout(timer); timer = setTimeout(check, 50); } });
+  const files = document.querySelector("#files");   // a dropped song is the music: learned music lines then go
+  if (files && window.MutationObserver) new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(check, 200); }).observe(files, {childList: true});
   box.innerHTML = EMPTY_TEXT;
+  check();
 })();

@@ -25,7 +25,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from video_studio import __version__, autopilot, config, memory
+from video_studio import __version__, autopilot, config, memory, signals
 from video_studio.project import Project, slug
 from video_studio.util import FROZEN, app_data_dir, console, kill_tree, read_json, resource_path, write_json
 
@@ -159,6 +159,8 @@ class Job:
         self.finished = time.time()
         self.status = "done" if code == 0 else ("warning" if code == 2 else ("stopped" if self.status == "stopping" else "failed"))
         self._line(f"[exit {code}]")
+        if self.kind == "edit" and code in (0, 2):
+            signals.on_finished(self.root)   # learning: what the film used; retrains keep/cut in the background
 
     def _autopilot(self, code: int) -> bool:
         """After the engine exits: one automatic retry from where it stopped, then covers. True = a retry started."""
@@ -485,7 +487,7 @@ class Handler(BaseHTTPRequestHandler):
             self._file(resource_path("assets", "fonts", "InstrumentSerif-Italic.ttf"))
         elif url.path == "/brief-assistant.js":
             self._file(resource_path("studio_ui", "brief-assistant.js"))
-        elif url.path in ("/autopilot.js", "/understand.js"):
+        elif url.path in ("/autopilot.js", "/understand.js", "/learned.js"):
             self._file(resource_path("studio_ui", url.path.lstrip("/")))
         elif url.path == "/api/health":
             self._json({"app": "VideoStudio", "version": __version__, "pid": os.getpid()})
@@ -528,6 +530,8 @@ class Handler(BaseHTTPRequestHandler):
                 p = styledna.load(n) or {}
                 out.append({"name": n, "count": p.get("count", 0), "summary": styledna.describe(p) if p.get("shot_len") else ""})
             self._json({"styles": out})
+        elif url.path == "/api/learned":   # learning from your edits: real counts from the signal file
+            self._json(signals.summary())
         elif url.path == "/api/taste":
             self._json({"taste": [r for r in memory.taste_table() if r["bucket"] == "global"], "prefs": memory.prefs()})
         elif url.path.startswith("/api/jobs/"):
@@ -541,6 +545,8 @@ class Handler(BaseHTTPRequestHandler):
             path = _safe_path(q.get("path", [""])[0])
             if not path:
                 return self._json({"error": "not allowed"}, 403)
+            if q.get("download", [""])[0] == "1" and not self.headers.get("Range", "").replace("bytes=0-", ""):
+                signals.on_download(path)   # learning: a downloaded film is a film the person kept
             self._file(path)
         else:
             self._json({"error": "not found"}, 404)
@@ -600,7 +606,10 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == "/api/brief/understand":   # instant, local: what the prompt will set, and what cannot be done
             from video_studio import understand
 
-            return self._json(understand.understand(str(body.get("brief", ""))[:4000]))
+            seen = understand.understand(str(body.get("brief", ""))[:4000])
+            # what Takebloom learned from your edits fills the choices the prompt and Fine-tune leave open
+            seen["learned"] = signals.suggest(seen["options"], body.get("options") or {}, bool(body.get("has_song"))) or []
+            return self._json(seen)
         if url.path == "/api/pick-files":
             return self._json(pick_local_files(), 410)
         if url.path == "/api/local-file":
@@ -613,11 +622,21 @@ class Handler(BaseHTTPRequestHandler):
             if job and job.proc and job.proc.poll() is None:
                 job.status = "stopping"
                 kill_tree(job.proc)
+                if job.kind == "edit":
+                    signals.on_stopped(job.root)
             return self._json({"ok": True})
         if url.path == "/api/feedback":
             data = read_json(Path(body["root"]) / "project.json") or {}
             result = memory.add_feedback(data.get("id", ""), int(body["rating"]), body.get("notes", ""))
+            signals.on_rating(body["root"], int(body["rating"]), body.get("notes", ""))
             return self._json(result)
+        if url.path == "/api/signal":   # learning: share actions happen in the window (Windows share, site pages)
+            root = _project_root(str(body.get("root", "")))
+            if not root or body.get("kind") != "share":
+                return self._json({"error": "Only share actions on a project are recorded here."}, 400)
+            return self._json({"ok": bool(signals.on_share(root, str(body.get("via", ""))))})
+        if url.path == "/api/learned/forget":
+            return self._json(signals.forget())
         if url.path == "/api/refine":
             return self._json(refine(body))
         if url.path == "/api/ai/login":
@@ -810,6 +829,7 @@ def save_covers(raw_root: str, images: dict) -> dict:
         saved[key] = str(dest)
     if not saved:
         return {"error": "No cover was received."}
+    signals.on_covers(root)   # learning: covers made by hand mean the film is going out
     (exports / autopilot.MARK).unlink(missing_ok=True)   # the person's own covers: autopilot never replaces them
     if "reel" in saved or "youtube" in saved:
         main = Path(saved.get("reel") or saved["youtube"])
@@ -1019,6 +1039,8 @@ def start_job(body: dict) -> dict:
         args = _quick_args(mode, body, o, root, name)
         if isinstance(args, dict):
             return args
+        if mode == "restyle":
+            signals.on_restyle(o)
         job = Job(mode, args, root, name)
         JOBS[job.id] = job
         job.start()
@@ -1038,10 +1060,14 @@ def start_job(body: dict) -> dict:
         o.pop("aspect", None)
     if dropped["music"] and "--no-music" in from_prompt:
         from_prompt.remove("--no-music")   # a song in the drop is the music; "no music" then means no generated bed
+    # learned from earlier edits: only for choices the prompt and Fine-tune leave open, only when confident (signals.py)
+    learned = signals.suggest(seen["options"], chosen, bool(dropped["music"])) or []
+    from_prompt += signals.flags(learned)
     args = ["edit", *files, "--brief-file", str(_write_brief(root, body.get("brief", ""))), "--out", str(root), "--name", name,
             *_opts(o), *from_prompt]
     root.mkdir(parents=True, exist_ok=True)
-    write_json(root / "understood.json", {"brief": body.get("brief", ""), **seen, "applied": from_prompt})
+    write_json(root / "understood.json", {"brief": body.get("brief", ""), **seen, "learned": learned, "applied": from_prompt})
+    signals.on_edit_started(root, files, seen["options"], chosen, learned)
     job = Job(mode, args, root, name)
     JOBS[job.id] = job
     job.start()
@@ -1087,6 +1113,8 @@ REFINES = {
     "energy": {"settings": {"pacing": "fast", "music": "uplifting", "motion": "dynamic"}, "from": "plan"},
     "no_music": {"settings": {"music_enabled": False}, "from": "render"},
     "new_look": {"settings": {"look": ""}, "from": "plan"},
+    "less_motion": {"settings": {"motion": "subtle"}, "options": {"fx": "clean"}, "from": "plan"},
+    "no_captions": {"settings": {"captions": "none", "captions_enabled": False}, "from": "plan"},
 }
 
 
@@ -1106,6 +1134,7 @@ def refine(body: dict) -> dict:
             opts["hook_override"] = str(body["hook_text"])[:40]
         if body.get("opening"):
             opts["opening"] = str(body["opening"])
+        signals.on_review(root, keep, str(body.get("opening") or ""), body.get("hook_text"))   # keep/cut labels
         proj.save(data)
         job = Job("edit", ["resume", "--from", "plan", "--project", str(root)], root, data["name"] + " (your changes)")
         JOBS[job.id] = job
@@ -1123,8 +1152,11 @@ def refine(body: dict) -> dict:
     action = REFINES.get(body.get("action", ""))
     if not action:
         return {"error": "unknown action"}
+    signals.on_refine(root, body.get("action", ""))   # learning: what was asked for, and what it replaced
     if "settings" in action:
         data["settings"].update(action["settings"])
+    if "options" in action and data.get("kind") == "edit":
+        data.setdefault("edit_options", {}).update(action["options"])
     if "edit" in action and data.get("kind") == "edit":
         opts = data.setdefault("edit_options", {})
         m = read_json(root / "build" / "edit_manifest.json", {}) or {}
