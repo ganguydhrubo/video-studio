@@ -14,7 +14,8 @@ Every action on an edit is one line in an append-only file in the app home (`edi
   share     shared with apps / a site opened / folder shown    download and share count together)
   stopped   the person stopped the edit                      -0.5 for the choices Takebloom learned and applied
   rating    stars (and notes)                                (stars-1)/4 for the film's choices at 1.0; words in the
-                                                             notes ("too fast", "no captions") count like a choice
+                                                             notes count like a choice ("no captions", "less zoom")
+                                                             or against one ("too fast": -1.0 for fast pacing)
   restyle   a restyle job with chosen options                +0.5 for each chosen value
   finished  an edit finished                                 nothing by itself; starts the keep/cut retrain check
 
@@ -415,7 +416,7 @@ def profile(evs: list[dict] | None = None) -> dict:
         if kind == "edit":
             seen += 1
             rec = {"root": ev.get("root"), "chosen": dict(ev.get("chosen") or {}), "learned": dict(ev.get("learned") or {}),
-                   "changed": set(ev.get("replaced") or {}), "kept": False, "rating": None, "stopped": False}
+                   "changed": set(ev.get("replaced") or {}), "kept": False, "rating": None, "stopped": False, "final": {}}
             records.append(rec)
             by_root[rec["root"]] = rec
             ever |= {(o, v) for o, v in rec["chosen"].items()}
@@ -425,6 +426,8 @@ def profile(evs: list[dict] | None = None) -> dict:
             k = w * GAMMA ** age
             post[o][v] = (a + k * r, b + k * (1 - r))
         rec = by_root.get(ev.get("root"))
+        if rec and ev.get("final"):
+            rec["final"] = ev["final"]
         if kind == "refine":
             ever |= {(o, v) for o, v in (ev.get("set") or {}).items()}
             if rec:
@@ -456,11 +459,15 @@ def _accepted(rec: dict, option: str, value: str) -> bool:
             and (rec["kept"] or (rec["rating"] or 0) >= 4))
 
 
-def _reason(chose: int, kept: int, n: int) -> str:
+def _reason(chose: int, kept: int, n: int, liked: int = 0) -> str:
     edits = f"of your last {n} edits" if n > 1 else "of your edits"
     if chose and kept:
         return f"you chose it in {chose} and kept it in {kept} {edits}"
-    return f"you chose it in {chose} {edits}" if chose else f"you kept it in {kept} {edits}"
+    if chose or kept:
+        return f"you chose it in {chose} {edits}" if chose else f"you kept it in {kept} {edits}"
+    if liked:   # only Takebloom's own choice, on films the person kept: shown, never used by itself
+        return f"Takebloom picked it in {liked} {edits} that you kept or rated well"
+    return "from your ratings and notes"
 
 
 def preference(option: str, prof: dict) -> dict | None:
@@ -479,7 +486,8 @@ def preference(option: str, prof: dict) -> dict | None:
     latest = next((r["chosen"][option] for r in reversed(window) if option in r["chosen"]), value)
     confident = (mean >= MIN_MEAN and low >= MIN_LOW and mean - runner >= MIN_GAP and (option, value) in prof["ever"]
                  and chose + kept >= MIN_SUPPORT and latest == value)
-    reason = _reason(chose, kept, len(window))
+    liked = sum(1 for r in window if r["final"].get(option) == value and (r["kept"] or (r["rating"] or 0) >= 4))
+    reason = _reason(chose, kept, len(window), liked)
     return {"option": option, "name": NAMES[option], "value": value, "label": label(option, value),
             "mean": round(mean, 3), "low": round(low, 3), "evidence": round(evidence, 2), "chose": chose, "kept": kept,
             "of": len(window), "confident": confident, "reason": reason,
