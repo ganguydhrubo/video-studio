@@ -120,7 +120,24 @@ def _sigmoid(z: float) -> float:
 
 
 def fit(X: list[list[float]], y: list[int], l2: float = 1.0, iters: int = 600, lr: float = 0.3) -> list[float]:
-    """Plain gradient-descent logistic regression with class balancing (no extra dependencies at runtime)."""
+    """Plain gradient-descent logistic regression with class balancing. NumPy (already in the app) makes it about
+    a hundred times faster, so retraining after an edit is cheap; the pure-Python loop below is the same maths."""
+    try:
+        import numpy as np
+    except ImportError:
+        np = None
+    if np is not None:
+        xa, ya = np.asarray(X, dtype=float), np.asarray(y, dtype=float)
+        n = len(ya)
+        pos, neg = (ya.sum() or 1.0), ((n - ya.sum()) or 1.0)
+        cw = np.where(ya == 1, n / (2 * pos), n / (2 * neg))
+        reg = np.full(xa.shape[1], l2)
+        reg[0] = 0.0
+        w = np.zeros(xa.shape[1])
+        for _ in range(iters):
+            p = 1 / (1 + np.exp(-np.clip(xa @ w, -30.0, 30.0)))
+            w -= lr * ((xa.T @ ((p - ya) * cw)) / n + reg * w / n)
+        return [float(v) for v in w]
     d = len(X[0])
     w = [0.0] * d
     pos = sum(y) or 1
@@ -165,7 +182,11 @@ def _metrics(y: list[int], pred: list[int]) -> dict:
 
 
 def train(roots: list[Path], save: bool = True) -> dict:
-    pairs = find_pairs(roots)
+    return train_pairs(find_pairs(roots), save)
+
+
+def train_pairs(pairs: list[dict], save: bool = True) -> dict:
+    """Train on {"name", "video", "words", "segs"} pairs (from folders, or from your reviews in signals.py)."""
     if len(pairs) < 2:
         console.warn("Need at least 2 finished edits (words.json + edl*.json, or Video Studio projects) to learn from.")
         return {"ok": False, "pairs": len(pairs)}

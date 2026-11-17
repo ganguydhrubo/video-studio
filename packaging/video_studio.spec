@@ -19,7 +19,7 @@ a = Analysis(
         (str(PKG / "assets" / "app-icon.ico"), "assets"),
         (str(PKG / "assets" / "takebloom-logo.png"), "assets"),
     ],
-    hiddenimports=["video_studio.editor", "video_studio.studio", "video_studio.machine", "video_studio.library", "video_studio.updates", "video_studio.photos", "video_studio.restyle", "video_studio.cutout", "video_studio.autopilot", "video_studio.pictures", "video_studio.understand", "video_studio.engines.hyperframes", "video_studio.brain", "video_studio.speech", "video_studio.matting",
+    hiddenimports=["video_studio.editor", "video_studio.studio", "video_studio.machine", "video_studio.library", "video_studio.updates", "video_studio.photos", "video_studio.restyle", "video_studio.cutout", "video_studio.autopilot", "video_studio.pictures", "video_studio.understand", "video_studio.engines.hyperframes", "video_studio.brain", "video_studio.speech", "video_studio.matting", "video_studio.signals",
                    "video_studio.learn", "video_studio.setup", "video_studio.engines.sense", "video_studio.engines.style",
                    "video_studio.engines.styledna", "video_studio.shorts", "video_studio.vocab", "video_studio.watch", "video_studio.engines.arranger", "video_studio.dub", "video_studio.story", "video_studio.broll",
                    "video_studio.encoders", "video_studio.speed"],

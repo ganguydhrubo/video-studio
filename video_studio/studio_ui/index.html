@@ -721,7 +721,7 @@ tr:last-child td{border-bottom:0}
     <div class="cta" style="margin-top:10px"><button class="btn" id="aiRefresh">Check again</button><span class="hint" id="aiMsg" role="status"></span></div></div>
   <div class="card full"><h2>Editing tools</h2><div class="tablewrap"><table><thead><tr><th>Tool</th><th>Status</th><th>Version</th><th>What it does</th></tr></thead><tbody id="sysRows"><tr><td colspan="4" class="hint">Checking…</td></tr></tbody></table></div></div>
   <div class="card full"><h2>What Takebloom has learned about your taste</h2><div id="taste" class="hint"><div class="skel" style="width:50%"></div></div>
-  <p class="hint" style="margin-top:12px">Learning means a preference model updated by your ratings, not AI model training. Review or delete it any time: <code>video-studio memory taste</code>, <code>video-studio memory reset-taste</code>.</p></div>
+  <p class="hint" style="margin-top:12px">Learning means a preference model updated by your ratings and by what you do with every edit, not AI model training. Review or delete it any time: <code>video-studio memory taste</code>, <code>video-studio memory reset-taste</code>.</p></div>
   </div>
 </section>
 </main>
@@ -1430,8 +1430,8 @@ function showResult(p, status) {
         ${(p.effects || []).map(r => `<div class="note"><i class="s">FX</i><span>${esc(r)}</span></div>`).join("")}` : ""}
       ${tl && tl.broll.length ? `<h3>B-roll cutaways</h3>${tl.broll.map(b => `<div class="note"><i class="k">${tc(b.t0)}</i><span>${esc(b.why)}</span></div>`).join("")}` : ""}
       <h3>Refine with one click</h3><div class="chips" id="refines" style="margin-top:0">
-        ${[["shorter","Make it shorter"],["faster","Faster pacing"],["energy","More energy"],["calmer","Calmer"],["new_look","Try another look"],["no_music","No music"]]
-          .filter(([k]) => p.kind === "edit" || !["shorter"].includes(k)).map(([k,l]) => `<button class="chip" data-a="${k}">${l}</button>`).join("")}</div>`,
+        ${[["shorter","Make it shorter"],["faster","Faster pacing"],["energy","More energy"],["calmer","Calmer"],["less_motion","Less zoom"],["no_captions","No captions"],["new_look","Try another look"],["no_music","No music"]]
+          .filter(([k]) => p.kind === "edit" || !["shorter", "less_motion"].includes(k)).map(([k,l]) => `<button class="chip" data-a="${k}">${l}</button>`).join("")}</div>`,
     quality: `<div class="score"><div class="ring" style="--p:${score}"><span>${score}</span></div>
         <div><b style="font:600 16px var(--display)">${score >= 90 ? "Technical checks passed" : score >= 70 ? "Good - a few notes" : "Needs attention"}</b>
         <div class="hint">${qa.fails ?? 0} fail · ${qa.warnings ?? 0} warning · automated checks on sync, loudness, clipping, black frames, format</div></div></div>
@@ -2012,5 +2012,6 @@ setTimeout(() => { if (!S.projects.length) api("/api/projects").then(r => { S.pr
 <script src="/autopilot.js"></script>
 <script src="/understand.js"></script>
 <script src="/cutout-quality.js"></script>
+<script src="/learned.js"></script>
 </body>
 </html>
