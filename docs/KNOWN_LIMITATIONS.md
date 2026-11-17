@@ -98,6 +98,6 @@
 - With music or constant loud noise under the voice, there may be no clear pause. Then no start is moved.
 - The Windows voice (SAPI) now gives true word times. Before 1.9.0 they were 1.5 times too big, so captions on a Windows voice ran later and later along each line. Voice lines made by older versions are made again once, because their saved times were wrong.
 - The Kokoro voice still gives no word times of its own. Its lines are timed by Whisper (base.en), with the same limits as above.
-- Karaoke captions now wait through the pauses between words. Before 1.9.0 every pause in a caption line made the later words light up early.
+- Karaoke captions now wait through any gap between two words' times. Before 1.9.0 such a gap made the later words in the line light up early. In a real test edit, every karaoke word lit up between 160 ms before and 26 ms after it was heard (57 ms on average).
 - Faster batched speech recognition exists only as a test option of the helper (`--batch`). It was 13 to 28% faster on this laptop, but in one test it lost a word, and when its safety check throws a part away it throws away up to 30 s of speech. It is off; normal recognition is unchanged.
 - Speaker detection (who is speaking) is not in 1.9.0.

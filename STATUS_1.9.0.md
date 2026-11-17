@@ -33,10 +33,13 @@ where Takebloom still speaks. No generation features. `ai.py` untouched. No UI c
   - Two voices 165 s with noise (-38 dB): mean 101 -> 95 ms, max unchanged 689 ms (no pause before that word).
   - Zira 65 s with large-v3-turbo (the model this PC really picks): mean 77 -> 47 ms, max 463 -> 136 ms.
 
-### 3. Karaoke highlight ran early after every pause: FIXED (`engines/captions.py`)
-- ASS `\kf` times run one after another. 1.8.1 used only each word's length, so every pause inside a caption line
-  made all later words light up early by the sum of the pauses. New `captions.karaoke_body()` puts each pause on the
+### 3. Karaoke highlight could run early after a pause: FIXED (`engines/captions.py`)
+- ASS `\kf` times run one after another. 1.8.1 used only each word's length, so any gap between word times inside a
+  caption line made all later words light up early by that gap. New `captions.karaoke_body()` puts each gap on the
   space before the next word (`{\k..}`), with positions rounded from the line start (no rounding drift).
+- Honest size of it (`%TEMP%	b-speech\karaoke_cmp.py`, real whisper transcripts): raw whisper words touch each other,
+  so old and new give the same times (max 5-10 ms). Gaps appear once starts are moved out of pauses: on the noisy
+  David clip the 1.8.1 formula then lit 2 words 140 ms early; 1.9.0 keeps every word within 10 ms.
 
 ### 4. Batched transcription: measured, stays OFF by default (`helpers/ml_helper.py --batch N`)
 - With `without_timestamps=False` faster-whisper 1.2.1 drops the unfinished last sentence of each 30 s piece.
@@ -52,12 +55,23 @@ where Takebloom still speaks. No generation features. `ai.py` untouched. No UI c
 - Decision: faster, but not "drops nothing" (lost a word on one clip), and a hallucination guard in batched mode
   throws away a whole 30 s piece instead of one sentence, with no temperature fallback. Left as an opt-in helper flag.
 
-## End-to-end check (real edit): see the bottom of this file
+## End-to-end check: a real edit with karaoke captions
+- Clip: 14.1 s test-pattern video + Zira speech with 0.4 s and 1.2 s pauses between lines (`%TEMP%	b-speech\mk_edit_clip.py`,
+  true word times from the fixed SAPI). Run through the shared queue:
+  `py -3.13 -m video_studio edit talk.mp4 "short tips video, tighten the pauses, karaoke captions" --no-ai --fx off
+  --captions karaoke --no-music --aspect 16:9 --quality draft --whisper-model small --platform youtube`
+  Finished in 56.8 s: 32 words, cut to 9.3 s in 4 pieces.
+- Measured (`%TEMP%	b-speech\measure_e2e.py`): each true word was found in the master's audio by matching the
+  source audio, then compared with when its karaoke fill starts in `captions.ass`.
+  All 32 words lit. Offset: mean 57 ms, median 50 ms, max 160 ms; mean signed -54 ms (lights slightly BEFORE the word;
+  never more than 26 ms after it). The cut timeline matches the audio: mean +6 ms, max 35 ms.
+- In this clip whisper's word times had no gaps inside a caption line, so the 1.8.1 karaoke code gave the same result.
+- Note: running from source, `edit` puts the project folder in the current folder; it was moved out of the worktree.
 
 ## Tests
-- `tests/test_speech.py` (22 tests, offline, about 0.2 s): SAPI scale from the bookmark / fallback / bad rows / real
+- `tests/test_speech.py` (25 tests, offline, under 1 s): SAPI scale from the bookmark / fallback / bad rows / real
   file length / cache key; pause trimming on synthetic voice bursts (clean, room noise, fading tail, stop gaps, long
-  sound, noise only, next-word limit); `ml.transcribe` with a mocked helper; karaoke timing read back from the ASS.
+  sound, noise only, next-word limit); `ml.transcribe` with a mocked helper; karaoke timing read back from the ASS; the batched helper path with a fake faster-whisper.
 - Full suite: `python -m unittest discover -s tests` and `node tests/test_file_input.cjs` pass.
 
 ## Not done (left for later, nothing half-built in the code)
