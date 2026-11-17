@@ -1250,6 +1250,8 @@ def render(proj: Project) -> Path:
                 m["music"] = {"source": "generated", **info, "stops": len(stops)}
                 console.info(f"Music: original {info['genre']} bed at {info['bpm']:.0f} BPM, drop at {info['drop_at']:.1f}s"
                              + (f", drops out before {len(stops)} punch-words" if stops else ""))
+    if m.get("music"):
+        proj.write("edit_manifest.json", m)   # the music is chosen after the first save; the timeline and Share read it
     fx = []
     for kind, at, gain in sfx_events:
         path = audio_dir / f"sfx_{kind}.wav"
