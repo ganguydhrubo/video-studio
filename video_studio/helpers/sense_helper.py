@@ -22,13 +22,18 @@ SW = 320
 
 
 def frames(path, ffmpeg, first=0):
-    """Samples from sample number `first` on (a seek half a millisecond early gives exactly the same samples)."""
+    """Samples from sample number `first` on: exactly the samples a read from the start gives there (same timestamps
+    for the fps filter, a second of lead-in, then trim; phone video with an uneven frame rate needs this)."""
     probe = cv2.VideoCapture(path)
     w, h = probe.get(cv2.CAP_PROP_FRAME_WIDTH), probe.get(cv2.CAP_PROP_FRAME_HEIGHT)
     probe.release()
     sh = int(round(SW * h / max(1, w) / 2) * 2) or 180
-    seek = ["-ss", f"{max(0.0, first / SAMPLE_FPS - 0.0005):.6f}"] if first else []
-    proc = subprocess.Popen([ffmpeg, "-v", "error", *seek, "-i", path, "-vf", f"fps={SAMPLE_FPS},scale={SW}:{sh}", "-f", "rawvideo",
+    seek, trim = [], ""
+    if first:
+        back = min(first, SAMPLE_FPS)
+        seek = ["-copyts", "-start_at_zero", "-ss", f"{max(0.0, (first - back) / SAMPLE_FPS - 0.0005):.6f}"]
+        trim = f",trim=start_pts={first}"
+    proc = subprocess.Popen([ffmpeg, "-v", "error", *seek, "-i", path, "-vf", f"fps={SAMPLE_FPS}{trim},scale={SW}:{sh}", "-f", "rawvideo",
                              "-pix_fmt", "bgr24", "-"], stdout=subprocess.PIPE,
                             creationflags=0x08000000 if sys.platform == "win32" else 0)
     n = SW * sh * 3

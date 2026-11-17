@@ -315,8 +315,10 @@ class TwoPassStyle(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = Path(tempfile.mkdtemp(prefix="tb-style-"))
         cls.clip = cls.tmp / "clip.mp4"
-        subprocess.run([FFMPEG, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=96x160:r=30:d=6.2", "-pix_fmt", "yuv420p",
-                        str(cls.clip)], check=True)
+        # timestamps half a frame off after frame 50 and again after 120, like the joins in a real cut.mov
+        subprocess.run([FFMPEG, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=96x160:r=30:d=6.2",
+                        "-vf", "settb=1/15360,setpts='PTS+gte(N,50)*256+gte(N,120)*205'", "-fps_mode", "passthrough",
+                        "-enc_time_base", "1/15360", "-video_track_timescale", "15360", "-pix_fmt", "yuv420p", str(cls.clip)], check=True)
 
     @classmethod
     def tearDownClass(cls):
@@ -373,18 +375,17 @@ class TwoPassStyle(unittest.TestCase):
         self.assertEqual(raw[0], raw[1])  # lossless test encode: identical pictures
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 @unittest.skipUnless(PY and FFMPEG, "needs FFmpeg and a Python with OpenCV")
 class ParallelSense(unittest.TestCase):
     def test_parallel_sense_gives_the_same_result(self):
         helper = ROOT / "video_studio" / "helpers" / "sense_helper.py"
         with tempfile.TemporaryDirectory() as tmp:
             clip = Path(tmp) / "clip.mp4"
+            # uneven timestamps (phone video): samples at part starts must still match a read from the start
             subprocess.run([FFMPEG, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=30:d=21", "-f", "lavfi",
-                            "-i", "sine=f=440:d=21", "-pix_fmt", "yuv420p", "-shortest", str(clip)], check=True)
+                            "-i", "sine=f=440:d=21", "-vf", "settb=1/15360,setpts='PTS+gte(N,200)*1280+gte(N,400)*256'",
+                            "-fps_mode", "passthrough", "-enc_time_base", "1/15360", "-video_track_timescale", "15360",
+                            "-pix_fmt", "yuv420p", "-shortest", str(clip)], check=True)
             out = []
             for workers in (1, 2):
                 dest = Path(tmp) / f"sense{workers}.json"
@@ -421,3 +422,7 @@ class BackgroundProsody(unittest.TestCase):
             self.assertEqual(calls, ["prosody", "prosody"])
             (build / "brain.json").write_text("{}")
             self.assertFalse(speed.start_prosody(build, build / "source.mov", words))  # the brain is already done
+
+
+if __name__ == "__main__":
+    unittest.main()

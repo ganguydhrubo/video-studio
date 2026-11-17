@@ -628,11 +628,21 @@ WARM = 24  # frames decoded before a track part so the matte smoothing (x0.35 a 
 CF = 0x08000000 if sys.platform == "win32" else 0
 
 
+def seek_args(first, rate):
+    """FFmpeg input options + extra filter so a decode from output frame `first` gives exactly the frames a decode from
+    the start gives there. The cut has small time gaps at piece joins, so the fps filter must see the same timestamps
+    (-copyts) and a second of frames before the part; trim then starts at that frame. A plain seek to the frame time
+    (the old renderer, with 4 decimals) could start a part one frame early or late."""
+    if not first:
+        return [], ""
+    back = min(first, int(rate))
+    return (["-copyts", "-start_at_zero", "-ss", f"{max(0.0, (first - back) / rate - 0.0005):.6f}"],
+            f",trim=start_pts={first}")
+
+
 def decoder(first):
-    # Seek half a millisecond before the frame: "-ss 2.0667" for frame 62 lands after it, and an exact-to-4-places
-    # time made the old renderer start some parts one frame late (a repeated frame at the join, effects one frame off).
-    seek = ["-ss", f"{max(0.0, first / FPS - 0.0005):.6f}"] if first else []
-    return subprocess.Popen([P["ffmpeg"], "-v", "error", *seek, "-i", P["input"], "-vf", f"scale={W}:{H},fps={FPS}", "-f", "rawvideo",
+    seek, trim = seek_args(first, FPS)
+    return subprocess.Popen([P["ffmpeg"], "-v", "error", *seek, "-i", P["input"], "-vf", f"scale={W}:{H},fps={FPS}{trim}", "-f", "rawvideo",
                              "-pix_fmt", "bgr24", "-"], stdout=subprocess.PIPE, creationflags=CF)
 
 
