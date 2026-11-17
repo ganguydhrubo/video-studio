@@ -94,11 +94,11 @@
 ## Cut-out 1.9.0
 
 - "Best quality" is optional. It uses BiRefNet lite (MIT licence). Its 214 MB model is downloaded only when you tick the download box. Its SHA-256 is checked; the publisher gives no checksum, so the check uses the value of the release file as downloaded on 17 Nov 2026.
-- Best quality runs on the processor and is much slower than Fast. On the 13th-gen i7 test laptop, with other jobs running, one BiRefNet frame took about 17 to 32 seconds. A 6-second 1080x1920 clip took 375 seconds (Fast: 23 seconds). Use it for short shots that need clean edges.
+- Best quality runs on the processor and is much slower than Fast. On the 13th-gen i7 test laptop, with other jobs running, one BiRefNet frame took about 17 to 32 seconds. A 6-second 1080x1920 clip took about 4 minutes (249 seconds; Fast: 23 seconds). Use it for short shots that need clean edges.
 - To stay usable, BiRefNet runs only on 2 keyframes a second, at every shot change and usually on the last frame. Frames in between move the keyframe edge with optical flow. Fast moves between keyframes can smear the edge for a few frames; where the two keyframes disagree, MediaPipe decides, which can bring back MediaPipe's softer edge there.
 - BiRefNet cuts out every main subject, not only people. A helmet or bag held up to the camera stays in the cut-out (Fast often drops it).
 - The graphics card is not used: DirectML failed on the test PC's Intel graphics, and Takebloom does not install the DirectML package (it clashes with the voice package). If DirectML happens to be installed and fails, the processor is used.
 - The time shown before a best-quality run comes only from speeds measured on this PC (the first run measures it). Before that, the hardware check shows a rough figure from the test laptop, marked as an estimate.
-- Peak memory of the best-quality helper was about 7 GB in the first real run. On a PC with little free memory it can be slow or fail; the hardware check warns below 1.5 GB free.
+- Best quality needs a lot of memory: the helper peaked at about 6 to 6.5 GB (the model's fixed 1024 x 1024 input sets this floor). It is refused when less than 5 GB is free, and the hardware check warns on PCs with under 12 GB of memory.
 - Only tested on a synthetic clip made from a public-domain still photo (camera pan, zoom and one hard cut), not on real footage of a moving person. Hair against a busy background, motion blur and several people were not tested.
 - There is no spill (green or colour fringe) removal and no object picker; the whole main subject is kept.

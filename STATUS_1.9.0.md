@@ -32,9 +32,19 @@ Fast (MediaPipe) stays the default and its cached masks are reused unchanged.
 - Visual: contact sheet `%TEMP%\tb-cutout\compare\contact_sheet.jpg`. Fast cuts holes in the suit collar ring and
   shoulder; Best keeps the whole suit and a cleaner hair line, and also keeps the held helmet.
 - After that run: warp grid cached and guided filter at ~640 px coefficients (warp 147 -> 66 ms, guided 149 -> 74 ms
-  a frame); MediaPipe fix threshold 0.4% -> 2%.
+  a frame); MediaPipe fix threshold 0.4% -> 2%; onnxruntime memory arena and memory pattern turned off.
+- Memory test (8 threads, 3 frames): arena on peak 7.35 GB, off 6.02 GB, same speed (15-26 s a frame either way).
+  The floor comes from the model (fixed 1024 input, gather layers). Run refused below 5 GB free (`MIN_FREE_GB`).
+- Second real run, through the CLI (`py -3.13 -m video_studio cutout clip --best --background colour`): the precheck
+  printed "Expected time: about 6 minutes (measured on this PC over 1 run(s))"; it took 249 s wall (mask 242.7 s,
+  13 keys at 15.0 s, in-between frames ~0.25 s each, 1 cut, peak 6.46 GB). Contact sheet
+  `%TEMP%\tb-cutout\compare2\contact_sheet.jpg`.
+- Mask flicker (mean frame-to-frame change of the alpha, 180 frames): Fast 0.0122 (p95 0.0200), Best 0.0070
+  (p95 0.0079). Semi-transparent pixels: Fast 10.4%, Best 2.6% (sharper edges).
+- UI checked on the test server (port 7884, scratch home and workspace): the "Edge quality" select, the download
+  tick (hidden when the model is present) and the hint line appear in the cut-out options only.
 
 ## Open
 
-- Peak memory 7 GB is too high for a 16 GB laptop with other apps open; see the memory test below.
+- Peak memory ~6 GB: fine on a quiet 16 GB laptop, refused when under 5 GB is free.
 - Not run on real footage of a moving person; no object picker; no spill removal; DirectML not usable here.

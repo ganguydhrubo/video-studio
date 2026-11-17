@@ -233,7 +233,7 @@ def _best_matte(video: Path, part: Path, facts: dict, smooth: float, ffmpeg: str
 
     model = matting.ensure(allow_download=False)
     mp_model = model_path()
-    resources.ensure_memory(1.2, "best-quality background removal")
+    resources.ensure_memory(matting.MIN_FREE_GB, "best-quality background removal")
     frames_guess = max(1.0, facts["duration"] * facts["fps_value"])
     est = matting.estimate(facts["duration"], facts["fps_value"])
     timeout = max(1800.0, (est.get("seconds") or frames_guess * 10.0) * 3.0)

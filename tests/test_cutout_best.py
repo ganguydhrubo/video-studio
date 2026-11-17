@@ -243,8 +243,9 @@ class Estimate(unittest.TestCase):
         weak = machine.check("cutout_best", seconds=6, s=fake_pc(ram=6, threads=4))
         self.assertEqual(weak["level"], "warn")
         self.assertTrue(any("very slow" in m for m in weak["messages"]))
-        low = machine.check("cutout_best", s=fake_pc(free=1.0))
+        low = machine.check("cutout_best", s=fake_pc(free=3.0))
         self.assertTrue(any("free memory" in m for m in low["messages"]))
+        self.assertEqual(machine.check("cutout_best", s=fake_pc(ram=8)).get("level"), "warn")
 
     def test_unmeasured_check_says_estimate(self):
         c = machine.check("cutout_best", seconds=6, s=fake_pc())

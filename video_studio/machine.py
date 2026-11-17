@@ -314,14 +314,16 @@ def _cutout_best(t: str, s: dict) -> dict:
     try:
         from video_studio import matting
 
-        present, size = matting.model_present(), matting.MODEL["size"]
+        present, size, peak, need = matting.model_present(), matting.MODEL["size"], matting.PEAK_GB, matting.MIN_FREE_GB
     except Exception:  # noqa: BLE001
-        present, size = False, "214 MB"
+        present, size, peak, need = False, "214 MB", 6.0, 5.0
     name = "Best-quality cut-out (finer hair and edges)"
-    if t == "basic":
-        return _feature("cutout_best", name, "slow", "Best quality is very slow on this PC. Use Fast, or keep clips to a few seconds.")
-    if s.get("ram_free_gb", 99) < 1.5:
-        return _feature("cutout_best", name, "slow", "Best quality needs about 1.5 GB of free memory. Close other apps first.")
+    if t == "basic" or s.get("ram_total_gb", 0) < 11.5:
+        return _feature("cutout_best", name, "slow", f"Best quality is very slow on this PC and needs about {peak:g} GB of memory. "
+                        "Use Fast, or keep clips to a few seconds.")
+    if s.get("ram_free_gb", 99) < need:
+        return _feature("cutout_best", name, "slow", f"Best quality needs about {peak:g} GB of free memory and only "
+                        f"{s.get('ram_free_gb', 0):g} GB is free. Close other apps first, or use Fast.")
     if not present:
         return _feature("cutout_best", name, "install", f"Best quality needs a one-time {size} download (MIT licence) when you choose it.")
     return _feature("cutout_best", name, "ready", "Runs on the processor; many times slower than the fast cut-out.")
@@ -351,9 +353,9 @@ def _summary(t: str, lim: dict, features: list[dict]) -> str:
 
 
 # Best-quality cut-out, used only until this PC has measured its own speed (matting.estimate). Measured 17 Nov 2026 on
-# the 13th-gen i7 laptop (a "plus" PC, other jobs running): a 6 s 1080x1920 clip took 375 s, about 62 s of work per
-# second of footage, which is 4x the plus-tier figure. The fast cut-out of the same clip took 23 s.
-CUTOUT_BEST_WORK = 4.0
+# the 13th-gen i7 laptop (a "plus" PC, other jobs running): a 6 s 1080x1920 clip took 375 s, then 249 s after the
+# flow speed-ups (41-62 s of work per second of footage, 2.6-3.9x the plus-tier figure). Fast took 23 s.
+CUTOUT_BEST_WORK = 3.5
 # Work per second of output compared with a full edit (speech-to-text, planning, effects), measured on a
 # 13th-gen i7 laptop: a photo video took 2 s per second, a restyle about 1.3, a person cut-out about 13.
 # The best-quality cut-out (1.9.0) uses its own measured speed when this PC has one (video_studio/matting.py).

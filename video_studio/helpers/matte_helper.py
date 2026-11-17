@@ -158,8 +158,9 @@ class BiRefNet:
         so.intra_op_num_threads = self.threads
         so.inter_op_num_threads = 1
         so.graph_optimization_level = self.ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-        if providers[0] == "DmlExecutionProvider":
-            so.enable_mem_pattern = False
+        # no memory arena or memory pattern: the arena keeps every 1024 x 1024 intermediate and grew to ~7 GB
+        so.enable_cpu_mem_arena = False
+        so.enable_mem_pattern = False
         self.session = self.ort.InferenceSession(self.model, so, providers=providers)
         self.input = self.session.get_inputs()[0].name
         self.provider = self.session.get_providers()[0]

@@ -34,6 +34,10 @@ MODEL = {
     "licence": "MIT (BiRefNet by ZhengPeng7)",
 }
 KEYS_PER_SECOND = 2.0  # BiRefNet keyframes per second of footage (plus shot changes and the last frame)
+# Peak memory of the helper measured on the test laptop: 6.0 GB with the arena off (7.4 GB with it on). The model's fixed
+# 1024 x 1024 input and its gather-based layers make this the floor; the run is refused below MIN_FREE_GB.
+PEAK_GB = 6.0
+MIN_FREE_GB = 5.0
 BEST_MAX_SIDE = 1920  # best quality works at up to full HD; larger videos are refined at this size and scaled up
 SPEED_FILE = "cutout_speed.json"
 HELPER = resource_path("helpers", "matte_helper.py")
