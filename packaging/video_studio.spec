@@ -22,7 +22,7 @@ a = Analysis(
     hiddenimports=["video_studio.editor", "video_studio.studio", "video_studio.machine", "video_studio.library", "video_studio.updates", "video_studio.photos", "video_studio.restyle", "video_studio.cutout", "video_studio.generate", "video_studio.engines.hyperframes", "video_studio.brain",
                    "video_studio.learn", "video_studio.setup", "video_studio.engines.sense", "video_studio.engines.style",
                    "video_studio.engines.styledna", "video_studio.shorts", "video_studio.vocab", "video_studio.watch", "video_studio.engines.arranger", "video_studio.dub", "video_studio.story", "video_studio.broll",
-                   "video_studio.encoders"],
+                   "video_studio.encoders", "video_studio.speed"],
     excludes=["tkinter", "unittest", "pydoc_data", "matplotlib", "scipy", "torch", "cv2", "pandas", "IPython"],
     noarchive=False,
 )
