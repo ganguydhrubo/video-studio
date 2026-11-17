@@ -19,6 +19,9 @@ Goal: after the automatic edit, the person can fix anything on a timeline built 
 ## Render path chosen
 FFmpeg (Takebloom's own render, resumed from the render stage) over a HyperFrames render of the composition.
 See "Timeline 1.9.0" in docs/KNOWN_LIMITATIONS.md for the measured numbers.
+Real run (17.8 s edit -> 13.2 s after trim/delete/caption/picture/music changes): FFmpeg path 6 min 57 s, 1 piece re-cut,
+5 reused, QA 100/100, 13.27 s, new caption in the film. HyperFrames draft render 80 s but plain (no effects, grade,
+caption style, ducked mix, QA or exports), so it is not the same film.
 
 ## Not done
 - Overlays (big text, motion graphics from wt/motion) are shown read-only and placed again by the edit.
