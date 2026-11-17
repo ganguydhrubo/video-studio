@@ -28,12 +28,21 @@ def analyse(src: Path, dest: Path, speech_ratio: float | None = None) -> dict:
     model = style.matte_model()
     helper = resource_path("helpers", "sense_helper.py")
     res = subprocess.run([str(py), "-E", "-P", str(helper), str(src), str(dest), str(model or ""), str(ff.ffmpeg()),
-                          "" if speech_ratio is None else f"{speech_ratio:.3f}"],
+                          "" if speech_ratio is None else f"{speech_ratio:.3f}", str(workers())],
                          capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=3600,
                          creationflags=0x08000000 | 0x00004000)
     if res.returncode != 0 or not dest.exists():
         raise ToolError("Video analysis failed: " + (res.stderr or res.stdout)[-400:])
     return json.loads(dest.read_text(encoding="utf-8"))
+
+
+def workers(cores: int | None = None, free_gb: float | None = None) -> int:
+    """Time ranges analysed side by side (each ~0.45 GB, mostly one core); the audio runs alongside them."""
+    from video_studio import resources
+
+    cores = cores or resources.cpu_count()
+    free_gb = resources.memory().available_gb if free_gb is None else free_gb
+    return max(1, min(4, (cores - 2) // 2, int((free_gb - 1.5) / 0.6)))
 
 
 def describe(sense: dict) -> str:
