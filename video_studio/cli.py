@@ -530,7 +530,7 @@ def cmd_clean(args) -> int:
     return 0
 
 
-# ------------------------------------------------------------- quick productions (photos, restyle, cut-out, AI clip)
+# ------------------------------------------------------------- quick productions (photos, restyle, cut-out)
 
 def _quick_project(args, kind: str, default_name: str) -> Project:
     name = args.name or default_name
@@ -632,17 +632,6 @@ def cmd_cutout(args) -> int:
                "-map", "[v]", "-map", "0:a?", "-c:a", "aac", "-c:v", "libx264", "-crf", "20", str(preview)], check=False)
         result["transparent_file"] = str(out)
         result["output"] = str(preview) if preview.exists() else str(out)
-    return _finish_quick(proj, result, started)
-
-
-def cmd_generate(args) -> int:
-    from video_studio import generate
-
-    _precheck("generate_image" if args.image else "generate")
-    proj = _quick_project(args, "generate", "AI clip " + time.strftime("%d %b %H%M"))
-    started = time.time()
-    result = generate.run_generation(args.prompt, proj.root, image=args.image, aspect=args.aspect or "16:9",
-                                     seconds=args.seconds, allow_download=args.allow_download)
     return _finish_quick(proj, result, started)
 
 
@@ -956,16 +945,6 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--background-video", help="background video for --background video")
     s.add_argument("--mov", action="store_true", help="transparent output as ProRes 4444 .mov instead of .webm")
     s.set_defaults(func=cmd_cutout)
-
-    s = sub.add_parser("generate", help="AI video from text or a picture (needs a large NVIDIA card; says so otherwise)")
-    s.add_argument("prompt")
-    s.add_argument("--image", help="first picture for picture-to-video")
-    s.add_argument("--aspect", choices=["16:9", "9:16", "1:1", "4:5"], default="16:9")
-    s.add_argument("--seconds", type=float, default=5.0)
-    s.add_argument("--allow-download", action="store_true", help="allow the one-time model download (several GB)")
-    s.add_argument("--name")
-    s.add_argument("--out")
-    s.set_defaults(func=cmd_generate)
 
     s = sub.add_parser("machine", help="what this PC can make: limits, speed, local models, what needs the cloud")
     s.add_argument("--fresh", action="store_true", help="scan the hardware again")

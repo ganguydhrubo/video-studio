@@ -25,7 +25,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from video_studio import __version__, config, memory
+from video_studio import __version__, autopilot, config, memory
 from video_studio.project import Project, slug
 from video_studio.util import FROZEN, app_data_dir, console, kill_tree, read_json, resource_path, write_json
 
@@ -113,6 +113,10 @@ def engine_cmd() -> list[str]:
     return [sys.executable, "-m", "video_studio"]
 
 
+AUTO_KINDS = ("edit", "script", "photos")   # finished films get covers by themselves
+RETRY_KINDS = ("edit", "script")           # `resume --project` continues these from the stage that stopped
+
+
 class Job:
     def __init__(self, kind: str, args: list[str], root: Path, title: str) -> None:
         self.id = uuid.uuid4().hex[:10]
@@ -123,6 +127,8 @@ class Job:
         self.started = time.time()
         self.finished = None
         self.proc: subprocess.Popen | None = None
+        # autopilot: edits and script videos retry once by themselves and finish with covers (video_studio/autopilot.py)
+        self.retries = autopilot.RETRIES if kind in RETRY_KINDS else 0
 
     def start(self) -> None:
         env = {**os.environ, "NO_COLOR": "1", "PYTHONIOENCODING": "utf-8"}
@@ -148,9 +154,29 @@ class Job:
         code = self.proc.wait()
         if buf.strip():
             self._line(buf.strip())
+        if self._autopilot(code):
+            return
         self.finished = time.time()
         self.status = "done" if code == 0 else ("warning" if code == 2 else ("stopped" if self.status == "stopping" else "failed"))
         self._line(f"[exit {code}]")
+
+    def _autopilot(self, code: int) -> bool:
+        """After the engine exits: one automatic retry from where it stopped, then covers. True = a retry started."""
+        if self.status == "stopping" or self.kind not in AUTO_KINDS:
+            return False
+        if code not in (0, 2) and self.retries > 0 and (self.root / "project.json").exists():
+            self.retries -= 1
+            self._line(f"[exit {code}]")
+            self._line("Trying once more by itself, from where it stopped. Finished work is reused.")
+            time.sleep(2)
+            if self.status == "stopping":
+                return False
+            self.args = ["resume", "--project", str(self.root)]
+            self.start()
+            return True
+        if code in (0, 2):
+            autopilot.finish(self.root, say=self._line)
+        return False
 
     def _line(self, line: str) -> None:
         with LOCK:
@@ -458,6 +484,8 @@ class Handler(BaseHTTPRequestHandler):
             self._file(resource_path("assets", "fonts", "InstrumentSerif-Italic.ttf"))
         elif url.path == "/brief-assistant.js":
             self._file(resource_path("studio_ui", "brief-assistant.js"))
+        elif url.path == "/autopilot.js":
+            self._file(resource_path("studio_ui", "autopilot.js"))
         elif url.path == "/api/health":
             self._json({"app": "VideoStudio", "version": __version__, "pid": os.getpid()})
         elif url.path == "/api/capabilities":
@@ -685,7 +713,7 @@ SHARE_SITES = [
     {"key": "x", "name": "X", "url": "https://x.com/compose/post", "how": "Add the video with the picture icon and paste the post (280 characters)."},
     {"key": "whatsapp", "name": "WhatsApp", "url": "https://web.whatsapp.com/", "how": "Use Share with apps on this PC if WhatsApp is installed, or open a chat and attach the video."},
 ]
-COVER_SHAPES = {"reel": (1080, 1920), "grid": (1080, 1440), "youtube": (1280, 720)}
+COVER_SHAPES = autopilot.COVER_SHAPES
 
 
 def _project_root(raw: str) -> Path | None:
@@ -777,6 +805,7 @@ def save_covers(raw_root: str, images: dict) -> dict:
         saved[key] = str(dest)
     if not saved:
         return {"error": "No cover was received."}
+    (exports / autopilot.MARK).unlink(missing_ok=True)   # the person's own covers: autopilot never replaces them
     if "reel" in saved or "youtube" in saved:
         main = Path(saved.get("reel") or saved["youtube"])
         thumb = next(iter(sorted(exports.glob("*_thumbnail.jpg"))), None)
@@ -904,7 +933,7 @@ def _tool_job(kind: str, args: list[str], name: str) -> dict:
     return {"job": job.id, "root": str(root)}
 
 
-QUICK_NAMES = {"photos": "Photos ", "restyle": "Restyle ", "cutout": "Cut-out ", "generate": "AI clip "}
+QUICK_NAMES = {"photos": "Photos ", "restyle": "Restyle ", "cutout": "Cut-out "}
 QUICK_OPTIONS = {"aspect", "quality", "look", "captions", "voice", "music", "template", "grade", "transition"}
 
 
@@ -916,18 +945,6 @@ def _quick_args(mode: str, body: dict, o: dict, root: Path, name: str) -> list[s
     """Command line for photos, restyle, cut-out and AI clip jobs (each has its own short option set)."""
     files = [f for f in body.get("files", []) if Path(f).is_file()]
     common = ["--out", str(root), "--name", name]
-    if mode == "generate":
-        prompt = str(body.get("prompt") or body.get("script") or body.get("brief") or "").strip()
-        if not prompt:
-            return {"error": "Describe the shot you want first."}
-        args = ["generate", prompt, *common, "--aspect", str(o.get("aspect") or "16:9")]
-        if files:
-            args += ["--image", files[0]]
-        if o.get("seconds"):
-            args += ["--seconds", str(float(o["seconds"]))]
-        if o.get("allow_download"):
-            args.append("--allow-download")
-        return args
     if not files:
         return {"error": "Add at least one picture." if mode == "photos" else "Add a video file."}
     if mode == "cutout":
@@ -942,6 +959,12 @@ def _quick_args(mode: str, body: dict, o: dict, root: Path, name: str) -> list[s
     if o.get("no_music"):
         opts.append("--no-music")
     if mode == "photos":
+        from video_studio import pictures
+
+        dropped = pictures.split_media(files)
+        files = [str(p) for p in dropped["pictures"]]
+        if dropped["music"]:
+            opts += ["--music-file", str(dropped["music"][0])]
         args = ["photos", *files, *common, *opts]
         for key, flag in (("seconds", "--seconds"), ("total", "--total")):
             if o.get(key):
@@ -969,7 +992,17 @@ def _quick_args(mode: str, body: dict, o: dict, root: Path, name: str) -> list[s
 
 def start_job(body: dict) -> dict:
     mode = body.get("mode", "edit")
+    if mode not in ("edit", *QUICK_NAMES):
+        return {"error": "Takebloom edits the videos you shot. Script videos and AI clips are no longer part of the app."}
     o = dict(body.get("options", {}) or {})
+    if mode == "edit":
+        # one drop for everything: clips are edited, pictures become cutaways, an audio file becomes the music.
+        # Pictures with no clip at all make a photo film instead.
+        from video_studio import pictures
+
+        dropped = pictures.split_media([f for f in body.get("files", []) if Path(f).is_file()])
+        if not dropped["videos"] and dropped["pictures"]:
+            mode = "photos"
     if not o.get("quality"):
         from video_studio import machine
 
@@ -985,24 +1018,10 @@ def start_job(body: dict) -> dict:
         JOBS[job.id] = job
         job.start()
         return {"job": job.id, "root": str(root)}
-    if mode == "edit":
-        files = [f for f in body.get("files", []) if Path(f).is_file()]
-        if not files:
-            return {"error": "Add at least one video file."}
-        args = ["edit", *files, "--brief-file", str(_write_brief(root, body.get("brief", ""))), "--out", str(root), "--name", name, *_opts(o)]
-        args = [a for a in args if a != "--caption-script" or True]
-    else:
-        script = body.get("script", "").strip()
-        if not script:
-            return {"error": "Write or paste a script first."}
-        root.mkdir(parents=True, exist_ok=True)
-        (root.parent / f".{root.name}_script.txt").write_text(script, encoding="utf-8")
-        args = ["make", str(root.parent / f".{root.name}_script.txt"), "--out", str(root), "--name", name,
-                "--instructions", body.get("brief", "") or "", "--storyboard-frames",
-                *_opts({k: v for k, v in o.items() if k not in ("fx", "like", "caption_script")})]
-        if "--target" in args:
-            i = args.index("--target")
-            del args[i:i + 2]
+    if not dropped["videos"]:
+        return {"error": "Add at least one video clip. Pictures and a music file can go with it."}
+    files = [str(p) for group in ("videos", "pictures", "music") for p in dropped[group]][:60]
+    args = ["edit", *files, "--brief-file", str(_write_brief(root, body.get("brief", ""))), "--out", str(root), "--name", name, *_opts(o)]
     job = Job(mode, args, root, name)
     JOBS[job.id] = job
     job.start()

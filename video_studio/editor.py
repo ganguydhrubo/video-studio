@@ -50,9 +50,17 @@ def run_cli(args) -> int:
         brief = Path(args.brief_file).read_text(encoding="utf-8")
     from video_studio.cli import apply_template
     brief = apply_template(args, brief or "")
-    footage = [Path(f).resolve() for f in items]
+    # clips, pictures and a music track can be given together: pictures become cutaways, the track the music
+    from video_studio import pictures
+
+    dropped = pictures.split_media(items)
+    footage = [f.resolve() for f in dropped["videos"]]
+    if dropped["music"] and not getattr(args, "music_file", None):
+        args.music_file = str(dropped["music"][0])
     if not footage:
-        raise ToolError("No footage given.", 'video-studio edit my_clip.mp4 "60 second reel, remove mistakes"')
+        raise ToolError("No video clip given." if dropped["pictures"] else "No footage given.",
+                        "Pictures alone make a photo film: video-studio photos <pictures>" if dropped["pictures"]
+                        else 'video-studio edit my_clip.mp4 "60 second reel, remove mistakes"')
     for f in footage:
         if not f.exists():
             raise ToolError(f"Footage not found: {f}")
@@ -77,6 +85,7 @@ def run_cli(args) -> int:
                             "caption_script": args.caption_script,
                             "fx": getattr(args, "fx", None) or "auto", "like": getattr(args, "like", None),
                             "broll": getattr(args, "broll", None),
+                            "pictures": [str(p.resolve()) for p in dropped["pictures"] if p.is_file()],
                             "platforms": args.platform}
     proj.save(data)
     from video_studio.cli import _apply_overrides
@@ -1143,6 +1152,9 @@ def render(proj: Project) -> Path:
                                      top=bool(m.get("caption_place", {}).get("top")) if h > w else False)
     # cutaways go in after the caption position was measured on YOUR face; captions are then burned on top
     cut_video = _broll_pass(proj, m, p, cut_video, splan if fx != "off" else {}, w, h, total)
+    from video_studio import pictures
+
+    cut_video = pictures.apply_pass(proj, m, cut_video, splan if fx != "off" else {}, w, h, total)
     m["srt"] = str(srt) if srt else ""
     proj.write("edit_manifest.json", m)
     console.step("Finishing: graphics, captions, grade")

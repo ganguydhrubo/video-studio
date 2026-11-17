@@ -540,18 +540,10 @@ tr:last-child td{border-bottom:0}
   <div class="modes" role="group" aria-label="Mode">
     <button class="mode" id="mEdit" aria-pressed="true">
       <div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="14" height="14" rx="3"/><path d="M17 10l4-2v8l-4-2"/></svg></div>
-      <div><b>Edit my footage</b><span>Finds the story, removes mistakes, adds captions, B-roll, music, colour and sound.</span></div>
-    </button>
-    <button class="mode" id="mScript" aria-pressed="false">
-      <div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h13"/></svg></div>
-      <div><b>Script to video</b><span>Voiceover, 3D scenes, motion graphics and a storyboard, from your text.</span></div>
+      <div><b>Edit my footage</b><span>Drop one clip or many, with pictures and your own song if you like. It finds the story, removes mistakes and adds captions, music, colour and sound by itself.</span></div>
     </button>
   </div>
-  <div class="modes quick" role="group" aria-label="More ways to make a video">
-    <button class="mode" id="mPhotos" aria-pressed="false">
-      <div class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg></div>
-      <div><b>Photos to video</b><span>Pan, zoom, music</span></div>
-    </button>
+  <div class="modes quick" role="group" aria-label="Tools for one video">
     <button class="mode" id="mRestyle" aria-pressed="false">
       <div class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 000 16z" fill="currentColor"/></svg></div>
       <div><b>Restyle a video</b><span>Look, shape, speed</span></div>
@@ -559,10 +551,6 @@ tr:last-child td{border-bottom:0}
     <button class="mode" id="mCutout" aria-pressed="false">
       <div class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1-4 4-6 7-6s6 2 7 6"/><path d="M3 3h4M17 3h4M3 21h2M19 21h2" stroke-dasharray="2 2"/></svg></div>
       <div><b>Remove background</b><span>Blur, colour, picture</span></div>
-    </button>
-    <button class="mode" id="mGenerate" aria-pressed="false">
-      <div class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.8 4.6L18 9.5l-4.2 1.9L12 16l-1.8-4.6L6 9.5l4.2-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg></div>
-      <div><b>AI clip</b><span>From text or a picture</span></div>
     </button>
   </div>
 
@@ -579,16 +567,6 @@ tr:last-child td{border-bottom:0}
       <details class="local-path-option"><summary>Use a large file where it is, without copying</summary><div class="row"><input type="text" id="localPath" placeholder="C:\Videos\my-clip.mov" aria-label="Original video path"><button type="button" class="btn" id="addLocalPath">Add this file</button></div><span id="localPathMessage" class="hint" role="status"></span></details>
       <p class="local-note"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex:none;margin-top:2px"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg><span>Your clips stay on this PC. Browsing or dropping makes a local working copy; the file-path option reads the original directly. Optional online AI sees transcript text only.</span></p>
     </div>
-    <div id="scriptInputs" hidden>
-      <label class="lbl" for="script" style="margin-top:0"><i>1</i>Write your script</label>
-      <textarea id="script" style="min-height:150px" placeholder="# Title&#10;&#10;Write the narration, one idea per paragraph.&#10;Optional: [3D: rocket]  [STAT: 70% | of creators]  [IMAGE: C:\path\photo.jpg]"></textarea>
-    </div>
-
-    <div id="genInputs" hidden>
-      <label class="lbl" for="prompt"><i>2</i>Describe the shot</label>
-      <textarea id="prompt" style="min-height:96px" placeholder="e.g. A slow drone shot over tea gardens at sunrise, mist in the valleys, warm light."></textarea>
-      <p class="hint" id="genReady" style="margin-top:8px"></p>
-    </div>
     <div id="quickOpts" hidden>
       <label class="lbl"><i>2</i><span id="quickLbl">Choose the options</span></label>
       <div class="advgrid">
@@ -601,8 +579,6 @@ tr:last-child td{border-bottom:0}
         <label data-modes="restyle cutout">Background<select id="qBackground"></select></label>
         <label data-modes="restyle cutout" id="qColourWrap">Background colour<input type="color" id="qColour" value="#00b140"></label>
         <div class="checkrow" data-modes="restyle"><label><input type="checkbox" id="qSteady"> Steadier camera</label><label><input type="checkbox" id="qDenoise"> Clean grainy video</label><label><input type="checkbox" id="qSharpen"> Sharpen</label><label><input type="checkbox" id="qSmooth"> Smooth slow motion (slower to make)</label></div>
-        <label data-modes="generate">Length<select id="qGenSeconds"><option value="3">3 seconds</option><option value="5" selected>5 seconds</option><option value="8">8 seconds (24 GB cards)</option></select></label>
-        <div class="checkrow" data-modes="generate"><label><input type="checkbox" id="qAllowDownload"> Allow the one-time model download (several GB)</label></div>
         <p class="hint wide" data-modes="cutout restyle" id="qBgHint">For a picture or video background, add it after the main video.</p>
       </div>
     </div>
@@ -795,19 +771,17 @@ const S = { mode: "edit", files: [], aspect: "9:16", platforms: new Set(), job: 
 const KIND_LABEL = {edit: "Footage edit", script: "Script video", photos: "Photo video", restyle: "Restyled video", cutout: "Background cut-out", generate: "AI clip"};
 const KIND_SUB = {edit: "Editing your footage on this PC", script: "Producing from your script on this PC", photos: "Making a video from your pictures on this PC",
   restyle: "Restyling your video on this PC", cutout: "Cutting out the person on this PC", generate: "Generating a clip on your graphics card"};
-const QUICK = ["photos", "restyle", "cutout", "generate"];
-const IMG_RE = /\.(jpe?g|png|webp|bmp|tiff?|gif|heic|heif|avif)$/i, VID_RE = /\.(mp4|mov|mkv|webm|m4v|avi)$/i;
+const QUICK = ["photos", "restyle", "cutout"];
+const IMG_RE = /\.(jpe?g|png|webp|bmp|tiff?|gif|heic|heif|avif)$/i, VID_RE = /\.(mp4|mov|mkv|webm|m4v|avi)$/i, AUD_RE = /\.(mp3|wav|m4a|aac|flac|ogg)$/i;
 const MODE_TEXT = {
-  edit: ["Choose your clips", "Drop your videos here", "or browse this PC · MP4, MOV, MKV, WebM · no fixed size limit", "Choose footage"],
+  edit: ["Choose your clips (and pictures or a song)", "Drop your videos here", "as many clips as you like, plus pictures and a song · MP4, MOV, JPG, PNG, MP3, WAV · no fixed size limit", "Choose footage"],
   photos: ["Choose your pictures", "Drop your pictures here", "in the order they should appear · JPG, PNG, WEBP, HEIC", "Choose pictures"],
   restyle: ["Choose a video", "Drop a video here", "MP4, MOV, MKV, WebM · add a picture after it for a picture background", "Choose a video"],
   cutout: ["Choose a video with a person", "Drop a video here", "then, if you want, a picture or video for the new background", "Choose a video"],
-  generate: ["Optional: a first picture", "Drop a picture here (optional)", "the clip starts from it · JPG, PNG, WEBP", "Describe the shot"]
 };
 const LIB = {templates: [], grades: [], transitions: []};
 const CHIPS = {
-  edit: ["Remove mistakes & long pauses", "45-second reel", "Hinglish captions", "Energetic, punchy cuts", "Calm & cinematic", "Add a hook title", "Keep every good line"],
-  script: ["Use 3D for the hook", "Confident tech explainer", "Warm & inspiring", "Fast-paced for Shorts", "Anime / toon 3D style", "Hindi-English audience"]
+  edit: ["Remove mistakes & long pauses", "45-second reel", "Hinglish captions", "Energetic, punchy cuts", "Calm & cinematic", "Add a hook title", "Keep every good line", "Music only, cut on the beat"]
 };
 const PLATFORMS = [["shorts","YouTube Shorts"],["reels","Instagram Reels"],["tiktok","TikTok"],["youtube","YouTube 16:9"],["square","Square feed"],["feed45","Instagram 4:5"]];
 const ASPECT_HINT = {"9:16":"Reels, Shorts, TikTok","16:9":"YouTube, LinkedIn, web","1:1":"Feeds, ads","4:5":"Instagram feed"};
@@ -1002,15 +976,14 @@ addEventListener("hashchange", route);
 /* ---------- create ---------- */
 /* three real steps: each lights up only from what is actually on the form */
 function syncQuest() {
-  const m = S.mode || "edit", script = m === "script", gen = m === "generate";
+  const m = S.mode || "edit";
   const ready = S.files.filter(f => f.path).length, copying = S.files.some(f => !f.path && !f.err);
-  const one = script ? !!$("#script").value.trim() : gen ? !!$("#prompt").value.trim() : ready > 0;
+  const one = ready > 0;
   const two = QUICK.includes(m) ? one : !!$("#brief").value.trim();
   const noun = m === "photos" ? "picture" : m === "edit" ? "clip" : "file";
-  $("#q1").textContent = script ? (one ? "Script added" : "Write or paste your script") : gen ? (one ? "Shot described" : "Describe the shot")
-    : ready ? `${ready} ${noun}${ready > 1 ? "s" : ""} ready on this PC` : copying ? "Copying to this PC…" : (MODE_TEXT[m] || MODE_TEXT.edit)[1].replace("Drop", "Browse or drop");
+  $("#q1").textContent = ready ? `${ready} ${noun}${ready > 1 ? "s" : ""} ready on this PC` : copying ? "Copying to this PC…" : (MODE_TEXT[m] || MODE_TEXT.edit)[1].replace("Drop", "Browse or drop");
   $("#q2").textContent = QUICK.includes(m) ? "Pick the options you want" : two ? "Brief added" : "Optional, but it helps";
-  $("#q3").textContent = one ? (copying ? "Finishing the local copy…" : "Ready when you are") : script ? "Waiting for a script" : gen ? "Waiting for a description" : "Waiting for " + (m === "photos" ? "pictures" : "footage");
+  $("#q3").textContent = one ? (copying ? "Finishing the local copy…" : "Ready when you are") : "Waiting for " + (m === "photos" ? "pictures" : "footage");
   const li = $("#quest").children;
   li[0].className = one ? "done" : "cur"; li[1].className = two ? "done" : one ? "cur" : ""; li[2].className = one && !copying ? "cur" : "";
   li[0].querySelector(".medal").textContent = one ? "✓" : "1"; li[1].querySelector(".medal").textContent = two ? "✓" : "2";
@@ -1019,30 +992,26 @@ function syncQuest() {
 function setMode(m) {
   S.mode = m;
   const quick = QUICK.includes(m), text = MODE_TEXT[m] || MODE_TEXT.edit;
-  $("#quest").children[0].querySelector("b").textContent = m === "script" ? "Write your script" : text[3];
-  for (const [id, mode] of [["#mEdit", "edit"], ["#mScript", "script"], ["#mPhotos", "photos"], ["#mRestyle", "restyle"], ["#mCutout", "cutout"], ["#mGenerate", "generate"]])
+  $("#quest").children[0].querySelector("b").textContent = text[3];
+  for (const [id, mode] of [["#mEdit", "edit"], ["#mRestyle", "restyle"], ["#mCutout", "cutout"]])
     $(id).setAttribute("aria-pressed", m === mode);
-  $("#editInputs").hidden = m === "script"; $("#scriptInputs").hidden = m !== "script"; $("#genInputs").hidden = m !== "generate";
   $("#dropLbl").innerHTML = "<i>1</i>" + esc(text[0]); $("#dropTitle").textContent = text[1]; $("#dropSub").textContent = text[2];
-  $("#fileInput").accept = m === "photos" || m === "generate" ? "image/*,.jpg,.jpeg,.png,.webp,.heic" : m === "cutout" || m === "restyle" ? "video/*,image/*,.mp4,.mov,.mkv,.webm,.m4v,.avi,.jpg,.jpeg,.png,.webp" : "video/*,.mp4,.mov,.mkv,.webm,.m4v,.avi";
-  $(".local-path-option").hidden = m === "photos" || m === "generate";
+  $("#fileInput").accept = m === "photos" ? "image/*,.jpg,.jpeg,.png,.webp,.heic" : m === "cutout" || m === "restyle" ? "video/*,image/*,.mp4,.mov,.mkv,.webm,.m4v,.avi,.jpg,.jpeg,.png,.webp" : "video/*,image/*,audio/*,.mp4,.mov,.mkv,.webm,.m4v,.avi,.jpg,.jpeg,.png,.webp,.heic,.mp3,.wav,.m4a,.aac,.flac,.ogg";
+  $(".local-path-option").hidden = m === "photos";
   $("#quickOpts").hidden = !quick;
   document.querySelectorAll("#quickOpts [data-modes]").forEach(el => { el.hidden = !el.dataset.modes.split(" ").includes(m); });
-  $("#quickLbl").textContent = m === "generate" ? "Options" : "Choose the options";
-  $("#quickOpts .lbl i").textContent = m === "generate" ? "3" : "2";
   for (const id of ["#briefLbl", "#brief", "#chips"]) $(id).hidden = quick;
   $("#fmtLbl").hidden = $("#fmtRow").hidden = m === "cutout";
-  $("#fmtLbl").querySelector("i").textContent = m === "generate" ? "4" : "3";
   $("#advBox").hidden = quick;
-  $("#voiceWrap").hidden = $("#styleWrap").hidden = m !== "script";
+  $("#voiceWrap").hidden = $("#styleWrap").hidden = true;
   $("#brief").placeholder = m === "edit" ? "e.g. A punchy 45-second Instagram reel. Remove mistakes and long pauses, bold captions, energetic music."
                                          : "e.g. Confident tech explainer for Shorts. Use 3D for the hook, warm music, female voice.";
   // the cut-out and AI clip keep it simple: no templates or looks; restyle has looks but no transitions
   const templates = LIB.templates.filter(t => t.modes.includes(m));
   $("#template").innerHTML = '<option value="">None (decide from my brief)</option>' + templates.map(t => `<option value="${esc(t.key)}">${esc(t.category)} · ${esc(t.name)}</option>`).join("");
   $("#templateWrap").hidden = !templates.length;
-  $("#gradeWrap").hidden = m === "cutout" || m === "generate";
-  $("#transitionWrap").hidden = !["edit", "script", "photos"].includes(m);
+  $("#gradeWrap").hidden = m === "cutout";
+  $("#transitionWrap").hidden = !["edit", "photos"].includes(m);
   $("#lookRow").hidden = $("#templateWrap").hidden && $("#gradeWrap").hidden && $("#transitionWrap").hidden;
   fillBackgrounds(); renderChips(); syncQuest(); pcCheck();
 }
@@ -1061,10 +1030,7 @@ function syncBackground() {
   $("#qBgHint").textContent = bg === "video" ? "Add the background video after the main video." : "Add the background picture after the main video.";
 }
 $("#qBackground").onchange = syncBackground;
-$("#mEdit").onclick = () => setMode("edit"); $("#mScript").onclick = () => setMode("script");
-$("#mPhotos").onclick = () => setMode("photos"); $("#mRestyle").onclick = () => setMode("restyle");
-$("#mCutout").onclick = () => setMode("cutout"); $("#mGenerate").onclick = () => setMode("generate");
-$("#prompt").addEventListener("input", syncQuest);
+$("#mEdit").onclick = () => setMode("edit"); $("#mRestyle").onclick = () => setMode("restyle"); $("#mCutout").onclick = () => setMode("cutout");
 $("#template").onchange = () => {
   const t = LIB.templates.find(x => x.key === $("#template").value);
   if (t && t.aspect) { const b = $("#aspect").querySelector(`[data-v="${t.aspect}"]`); if (b) b.click(); }
@@ -1084,7 +1050,7 @@ let pcChkTimer = 0, pcLast = null;
 function pcCheck() {
   clearTimeout(pcChkTimer);
   pcChkTimer = setTimeout(async () => {
-    const m = S.mode, task = m === "generate" && S.files.some(f => IMG_RE.test(f.name)) ? "generate_image" : m;
+    const m = S.mode, task = m;
     try {
       const c = await api(`/api/machine/check?task=${encodeURIComponent(task)}`);
       if (m !== S.mode) return;
@@ -1093,7 +1059,6 @@ function pcCheck() {
       $("#pcNote").className = "pc-note " + (c.level || "ok");
       $("#pcNote").innerHTML = c.level === "ok" ? "" : `<span>${c.level === "stop" ? "<b>This PC cannot do this.</b> " : "<b>This PC:</b> "}${esc(msgs.join(" "))}</span>`;
       $("#pcNote").hidden = c.level === "ok" || !msgs.length;
-      if (m === "generate") $("#genReady").textContent = c.level === "stop" ? "" : "Your graphics card can generate short clips on this PC.";
     } catch { $("#pcNote").hidden = true; }
   }, 150);
 }
@@ -1129,7 +1094,7 @@ $("#aspect").addEventListener("click", e => {
   S.aspect = b.dataset.v; $("#aspect").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
   $("#aspectHint").textContent = ASPECT_HINT[S.aspect]; stageAspect();
 });
-$("#brief").addEventListener("input", syncQuest); $("#script").addEventListener("input", syncQuest);
+$("#brief").addEventListener("input", syncQuest);
 /* uploads */
 const drop = $("#drop");
 // The real input receives the user's click directly. No network request,
@@ -1153,8 +1118,11 @@ function fmtSize(n) { return n > 1e9 ? (n/1e9).toFixed(1) + " GB" : (n/1e6).toFi
 function addFiles(list) {
   for (const f of list) {
     const isVid = f.type.startsWith("video/") || /\.(mp4|mov|mkv|webm|m4v|avi)$/i.test(f.name), isImg = f.type.startsWith("image/") || /\.(jpe?g|png|webp|bmp|tiff?|gif|heic|heif|avif)$/i.test(f.name);
-    const mode = S.mode || "edit", wantImg = mode === "photos" || mode === "generate", either = mode === "cutout" || mode === "restyle";
-    if (wantImg ? !isImg : either ? !(isVid || isImg) : !isVid) { toast(f.name + (wantImg ? " is not a picture" : " is not a video file")); continue; }
+    const isAud = f.type.startsWith("audio/") || /\.(mp3|wav|m4a|aac|flac|ogg)$/i.test(f.name);
+    const mode = S.mode || "edit", wantImg = mode === "photos", either = mode === "cutout" || mode === "restyle";
+    // Edit takes everything at once: clips to edit, pictures to show in the film, one song for the music
+    if (wantImg ? !isImg : either ? !(isVid || isImg) : !(isVid || isImg || isAud)) { toast(f.name + (wantImg ? " is not a picture" : mode === "edit" ? " is not a video, picture or song" : " is not a video file")); continue; }
+    if (mode === "edit" && isAud && S.files.some(x => /\.(mp3|wav|m4a|aac|flac|ogg)$/i.test(x.name))) { toast("One song per film. Remove the other song first."); continue; }
     const item = { name: f.name, size: f.size, path: null, pct: 0, preview: URL.createObjectURL(f), file: f };
     S.files.push(item); renderFiles(); upload(f, item);
   }
@@ -1192,10 +1160,15 @@ function renderFiles() {
   $("#files").querySelectorAll("[data-retry]").forEach(b => b.onclick = () => { const item = S.files[+b.dataset.retry]; upload(item.file, item); renderFiles(); });
   updateSourcePreview();
   if (typeof syncQuest === "function") syncQuest();
+  if (typeof autoArm === "function") autoArm();   // autopilot.js: start by itself once every copy is finished
 }
 
 function updateSourcePreview(index = S.previewIndex || 0) {
-  const file = S.files[index] || S.files[0]; S.previewIndex = file ? S.files.indexOf(file) : 0;
+  const song = f => /\.(mp3|wav|m4a|aac|flac|ogg)$/i.test(f.name);   // a song has no picture: preview the first clip or picture instead
+  const file = S.files[index] && !song(S.files[index]) ? S.files[index] : S.files.find(f => !song(f)); S.previewIndex = file ? S.files.indexOf(file) : 0;
+  const tune = S.files.find(song);
+  if (!file && tune) { const v = $("#sourcePreview"); v.hidden = true; v.removeAttribute("src"); v.dataset.source = ""; $("#previewEmpty").hidden = false; $("#srcTag").hidden = true;
+    $("#previewName").textContent = "Song: " + tune.name; $("#previewDuration").textContent = "Your music for the film. Add the clips to edit."; return; }
   const video = $("#sourcePreview"), source = file && (file.proxy || file.preview || (file.path ? media(file.path) : null));
   $("#previewEmpty").hidden = !!source; video.hidden = !source; $("#srcTag").hidden = !source;
   if (!source) { video.removeAttribute("src"); video.dataset.source = ""; video.load(); $("#previewName").textContent = "No clip chosen yet"; $("#previewDuration").textContent = "Select a video from this computer"; return; }
@@ -1229,12 +1202,7 @@ async function create() {
   if (QUICK.includes(S.mode)) {
     const ready = S.files.filter(f => f.path);
     if (S.files.some(f => !f.path && !f.err)) return $("#formErr").textContent = "Still copying to this PC. One moment.";
-    if (S.mode === "generate") {
-      body.prompt = $("#prompt").value.trim();
-      if (!body.prompt) return $("#formErr").textContent = "Describe the shot you want first.";
-      body.files = ready.filter(f => IMG_RE.test(f.name)).map(f => f.path).slice(0, 1);
-      Object.assign(options, { seconds: $("#qGenSeconds").value, allow_download: $("#qAllowDownload").checked });
-    } else if (S.mode === "photos") {
+    if (S.mode === "photos") {
       body.files = ready.map(f => f.path);
       if (!body.files.length) return $("#formErr").textContent = "Add at least one picture first.";
       body.titles = $("#qTitles").value;
@@ -1250,18 +1218,17 @@ async function create() {
     }
   } else if (S.mode === "edit") {
     if (!S.files.length) return $("#formErr").textContent = "Add at least one video clip first.";
+    if (!S.files.some(f => VID_RE.test(f.name) || IMG_RE.test(f.name))) return $("#formErr").textContent = "Add a video clip (or pictures) to go with the song.";
     if (!S.files.some(f => f.path) && S.files.every(f => f.err)) return $("#formErr").textContent = "No clip is ready yet. Press Try again on the clip, or add it with the file-path option.";
     if (S.files.some(f => !f.path && !f.err)) return $("#formErr").textContent = "Still copying your clip to this PC. One moment.";
     body.files = S.files.filter(f => f.path).map(f => f.path);
-  } else {
-    body.script = $("#script").value;
-    if (!body.script.trim()) return $("#formErr").textContent = "Write or paste a script first.";
   }
   $("#go").disabled = true;
   try {
     const r = await api("/api/jobs", { method: "POST", body: JSON.stringify(body) });
     if (r.error) throw new Error(r.error);
     S.job = r.job; S.root = r.root; S.since = 0; S.kind = S.mode;
+    if (body.files && typeof autoStarted === "function") autoStarted(body.files);   // never start the same clips twice
     location.hash = "#/job/" + encodeURIComponent(r.root);
   } catch (e) { $("#formErr").textContent = e.message + " Your clips and text are still here."; }
   $("#go").disabled = false;
@@ -2035,5 +2002,6 @@ setMode("edit"); stageAspect(); route(); refreshAIPill(); loadLibrary();
 setTimeout(() => { if (!S.projects.length) api("/api/projects").then(r => { S.projects = r.projects; renderShelf(); }).catch(() => {}); }, 1500);
 </script>
 <script src="/brief-assistant.js"></script>
+<script src="/autopilot.js"></script>
 </body>
 </html>

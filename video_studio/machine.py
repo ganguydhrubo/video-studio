@@ -47,10 +47,6 @@ LIMITS = {  # height, fps, recommended minutes of footage in one job (longer sti
     "gpu": {"height": 2160, "fps": 60, "minutes": 60, "quality": "high", "whisper": "large-v3-turbo"},
     "workstation": {"height": 2160, "fps": 60, "minutes": 120, "quality": "high", "whisper": "large-v3-turbo"},
 }
-# Open video-generation models need a large NVIDIA card. Figures are the publishers' own minimums for the
-# smallest practical setting; they are checked against the card's real memory.
-GEN_MIN_VRAM_GB = {"text_to_video": 8.0, "image_to_video": 12.0, "hd_generation": 24.0}
-
 
 # ------------------------------------------------------------------ scanning
 
@@ -162,24 +158,6 @@ def test_encoders(ffmpeg: str | None = None) -> dict:
     return {"tested": True, "working": working, "ffmpeg": str(ffmpeg)}
 
 
-def _cuda_python() -> dict:
-    """Whether the user's Python can run CUDA models (only asked when an NVIDIA card exists: importing torch is slow)."""
-    try:
-        from video_studio import detect
-        py = detect.system_python()
-    except Exception:  # noqa: BLE001
-        py = None
-    if not py:
-        return {"python": False, "torch": False, "cuda": False, "diffusers": False}
-    code = ("import json,importlib.util as u;r={'torch':bool(u.find_spec('torch')),'diffusers':bool(u.find_spec('diffusers'))}\n"
-            "if r['torch']:\n import torch;r['cuda']=bool(torch.cuda.is_available())\nelse: r['cuda']=False\nprint(json.dumps(r))")
-    try:
-        out = subprocess.run([str(py), "-E", "-c", code], capture_output=True, text=True, timeout=90, creationflags=_NO_WINDOW).stdout
-        return {"python": True, **json.loads(out.strip().splitlines()[-1])}
-    except (OSError, subprocess.SubprocessError, ValueError, IndexError):
-        return {"python": True, "torch": False, "cuda": False, "diffusers": False}
-
-
 def _local_models() -> dict:
     report = read_json(app_data_dir() / "system_report.json", {}) or {}
     scan = report.get("scan") or {}
@@ -199,11 +177,9 @@ def scan(fresh: bool = False) -> dict:
     cached = read_json(path, None)
     if fresh or not cached or time.time() - cached.get("at", 0) > SCAN_MAX_AGE:
         gpus = scan_gpus()
-        nvidia = any(g["vendor"] == "nvidia" for g in gpus)
         cached = {"at": time.time(), "os": f"{platform.system()} {platform.release()} ({platform.version()})",
                   "arch": platform.machine(), "cpu": scan_cpu(), "gpus": gpus, "encoders": test_encoders(),
-                  "cuda": _cuda_python() if nvidia else {"python": None, "torch": None, "cuda": False, "diffusers": None,
-                                                        "skipped": "no NVIDIA card"}}
+                  "cuda": {"cuda": False, "skipped": "not needed: Takebloom edits your own footage"}}
         write_json(path, cached)
     mem = resources.memory()
     cached = {**cached, "ram_total_gb": round(mem.total / 1024**3, 1), "ram_free_gb": round(mem.available_gb, 1),
@@ -268,8 +244,7 @@ def assess(s: dict | None = None) -> dict:
                  "FFmpeg does the cutting, colour, sound and encoding on this PC." if ffmpeg_ok else "FFmpeg is missing. Setup installs it."),
         _feature("captions", "Captions and speech-to-text", "ready" if packages.get("faster_whisper", True) else "install",
                  f"Speech model size picked for this PC: {lim['whisper']}."),
-        _feature("script", "Script to video (voice, motion graphics, music)", "ready", "Made locally with FFmpeg, voice and built-in music."),
-        _feature("photos", "Photos to video", "ready", "Pan and zoom, transitions and music, made locally."),
+        _feature("photos", "Your pictures in the edit, or a film from pictures alone", "ready", "Pan and zoom, transitions and music, made locally."),
         _feature("restyle", "Restyle a video (look, format, steadier, slow motion)", "ready" if t != "basic" else "slow",
                  "Steadying and smooth slow motion are heavy on this PC; keep clips short." if t == "basic" else "Made locally with FFmpeg."),
         _feature("cutout", "Remove or replace the background", "ready" if (s.get("models") or {}).get("segmentation") else "install",
@@ -283,20 +258,6 @@ def assess(s: dict | None = None) -> dict:
                  ("Tested and working: " + ", ".join(e.split("_")[1].upper() for e in encoders)) if encoders else
                  "No working hardware encoder; the processor encodes (slower, same quality)."),
     ]
-    gen = {"text_to_video": vram >= GEN_MIN_VRAM_GB["text_to_video"], "image_to_video": vram >= GEN_MIN_VRAM_GB["image_to_video"],
-           "hd_generation": vram >= GEN_MIN_VRAM_GB["hd_generation"]}
-    for key, label in (("text_to_video", "AI video from text"), ("image_to_video", "AI video from a picture")):
-        need = GEN_MIN_VRAM_GB[key]
-        if gen[key] and cuda:
-            features.append(_feature(f"gen_{key}", label, "ready", f"Your NVIDIA card has {vram:g} GB; the open model runs locally "
-                                     "(first use downloads several GB, with your permission)."))
-        elif gen[key]:
-            features.append(_feature(f"gen_{key}", label, "install", "Your NVIDIA card is large enough. Python with CUDA PyTorch and "
-                                     "diffusers is needed; Setup explains how."))
-        else:
-            have = f"has {vram:g} GB" if nvidia else "has no NVIDIA graphics card"
-            features.append(_feature(f"gen_{key}", label, "cloud_only", f"Needs an NVIDIA card with at least {need:g} GB; this PC {have}. "
-                                     "Use a cloud service for generated footage, then edit it here."))
     ram = s.get("ram_total_gb", 0)
     features.append(_feature("local_llm", "Fully offline AI editor (Ollama)", "ready" if ram >= 15 or vram >= 8 else ("slow" if ram >= 7.5 else "not_here"),
                              "A 7-8B model fits." if ram >= 15 or vram >= 8 else
@@ -343,8 +304,7 @@ def check(task: str, seconds: float | None = None, short_side: int | None = None
     a = assess(s)
     lim, msgs, level = a["limits"], [], "ok"
     feat = {f["key"]: f for f in a["features"]}
-    want = {"edit": "edit", "make": "script", "script": "script", "photos": "photos", "restyle": "restyle", "cutout": "cutout",
-            "generate": "gen_text_to_video", "generate_image": "gen_image_to_video"}.get(task, task)
+    want = {"edit": "edit", "make": "script", "script": "script", "photos": "photos", "restyle": "restyle", "cutout": "cutout"}.get(task, task)
     f = feat.get(want)
     if f and f["status"] in ("cloud_only", "not_here"):
         return {"level": "stop", "messages": [f["why"]], "assessment_summary": a["summary"], "tier": a["tier"]}

@@ -116,11 +116,6 @@ def report(s: dict) -> dict:
         else:
             limits.append("3D scenes are SLOW on this computer (no strong graphics card): about 20-40 seconds per frame. "
                           "Use them for short 2-5 second moments, or pick 'Draft' quality.")
-    if nv and nv["vram_gb"] >= 12:
-        can.append(f"Your {nv['name']} ({nv['vram_gb']} GB) is strong enough for AI-generated video clips (advanced add-on).")
-    else:
-        limits.append("It cannot invent new footage with AI (text-to-video). That needs an NVIDIA graphics card with "
-                      "12 GB+ memory. Everything else works with your own clips, photos and 3D.")
     if ram < 8:
         limits.append(f"Only {ram:.0f} GB memory: keep clips under 3 minutes and close other apps while rendering.")
     elif ram < 16:

@@ -32,18 +32,13 @@ class AnyPC(unittest.TestCase):
         self.assertEqual(machine.tier(fake_pc(ram=16, gpus=AMD_16)), "gpu")
         self.assertEqual(machine.tier(fake_pc(ram=32, gpus=NVIDIA_24)), "workstation")
 
-    def test_generation_is_offered_only_where_the_card_can_run_it(self):
-        def feat(s, key):
-            return {f["key"]: f for f in machine.assess(s)["features"]}[key]["status"]
-        self.assertEqual(feat(fake_pc(), "gen_text_to_video"), "cloud_only")
-        self.assertEqual(feat(fake_pc(gpus=AMD_16), "gen_text_to_video"), "cloud_only")  # needs NVIDIA CUDA
-        self.assertEqual(feat(fake_pc(gpus=NVIDIA_8, cuda=True), "gen_text_to_video"), "ready")
-        self.assertEqual(feat(fake_pc(gpus=NVIDIA_8, cuda=True), "gen_image_to_video"), "cloud_only")  # 12 GB needed
-        self.assertEqual(feat(fake_pc(gpus=NVIDIA_24, cuda=False), "gen_image_to_video"), "install")
-        self.assertEqual(feat(fake_pc(ram=32, gpus=NVIDIA_24, cuda=True), "gen_image_to_video"), "ready")
+    def test_ai_generation_is_not_offered_even_on_a_big_card(self):
+        # Takebloom edits footage people shot; text-to-video and picture-to-video were removed in 1.9.0
+        keys = {f["key"] for f in machine.assess(fake_pc(ram=32, gpus=NVIDIA_24, cuda=True))["features"]}
+        self.assertFalse({"gen_text_to_video", "gen_image_to_video", "script"} & keys)
+        self.assertIn("photos", keys)
 
     def test_check_refuses_what_the_pc_cannot_do_and_warns_about_limits(self):
-        self.assertEqual(machine.check("generate", s=fake_pc())["level"], "stop")
         basic = machine.check("edit", short_side=2160, fps=60, s=fake_pc(ram=6, threads=4))
         self.assertEqual(basic["level"], "warn")
         self.assertTrue(any("720p" in m for m in basic["messages"]))
@@ -160,31 +155,6 @@ class Restyle(unittest.TestCase):
         os.unlink(name)
 
 
-class Generate(unittest.TestCase):
-    def test_refuses_with_cloud_advice_on_a_pc_without_a_big_card(self):
-        from video_studio import generate
-        with patch.object(generate, "readiness", return_value={"local": False, "status": "cloud_only", "reason": "No NVIDIA card.", "vram_gb": 0}), \
-                patch.object(generate, "_call") as helper:
-            with self.assertRaises(ToolError) as err:
-                generate.run_generation("tea gardens", Path(tempfile.mkdtemp()))
-        helper.assert_not_called()
-        self.assertIn("cloud", err.exception.hint)
-
-    def test_small_cards_use_smaller_frames_and_wan_frame_counts(self):
-        from video_studio import generate
-        calls = {}
-
-        def fake_call(cmd, timeout, **kw):
-            calls.update(kw)
-            return {"ok": True, "output": kw["dest"], "seconds": 1}
-        with patch.object(generate, "readiness", return_value={"local": True, "status": "ready", "reason": "", "vram_gb": 8.0}), \
-                patch.object(generate, "_call", side_effect=fake_call):
-            generate.run_generation("tea gardens", Path(tempfile.mkdtemp()), aspect="9:16", seconds=8)
-        self.assertEqual((calls["width"], calls["height"]), generate.LOW_VRAM_SHAPES["9:16"])
-        self.assertEqual((calls["frames"] - 1) % 4, 0)
-        self.assertLessEqual(calls["frames"], 5 * 24 + 1)  # capped at 5 s below 24 GB
-
-
 class CommandsAndServer(unittest.TestCase):
     def test_new_commands_parse(self):
         from video_studio import cli
@@ -195,7 +165,7 @@ class CommandsAndServer(unittest.TestCase):
         self.assertTrue(a.steady)
         a = p.parse_args(["cutout", "v.mp4", "--background", "transparent", "--mov"])
         self.assertTrue(a.mov)
-        for argv in (["generate", "a shot"], ["machine", "--json"], ["library"], ["update", "rollback"]):
+        for argv in (["machine", "--json"], ["library"], ["update", "rollback"]):
             self.assertTrue(callable(p.parse_args(argv).func))
 
     def test_server_builds_each_quick_job(self):
@@ -213,7 +183,6 @@ class CommandsAndServer(unittest.TestCase):
             self.assertEqual(a[a.index("--background-image") + 1], str(pic))
             a = studio._quick_args("cutout", {"files": [str(vid)]}, {"background": "colour", "colour": "#112233"}, root, "C")
             self.assertEqual(a[a.index("--colour") + 1], "#112233")
-            self.assertIn("error", studio._quick_args("generate", {}, {}, root, "G"))
             self.assertIn("error", studio._quick_args("photos", {"files": []}, {}, root, "P"))
 
     def test_update_actions_are_refused_while_running_from_source(self):
