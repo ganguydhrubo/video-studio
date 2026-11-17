@@ -3,7 +3,9 @@
 Per sampled frame (~6 fps at 320 px): sharpness, exposure, colourfulness, motion (optical flow), camera-vs-subject motion,
 person area and position (MediaPipe selfie matte), shot cuts (colour-histogram jumps). Audio: speech/music energy, beats.
 Output: shots with quality scores, footage type, and a timeline the editor uses to choose cuts, effects and style.
-Usage: python sense_helper.py <video> <out.json> [model.tflite]
+Usage: python sense_helper.py <video> <out.json> [model.tflite] [ffmpeg] [speech_ratio] [workers]
+With workers > 1 the frames are analysed in time ranges by parallel processes (MediaPipe uses one core each) and the
+audio in one more process at the same time; the result is the same as one process.
 """
 
 from __future__ import annotations
@@ -19,12 +21,19 @@ SAMPLE_FPS = 6
 SW = 320
 
 
-def frames(path, ffmpeg):
+def frames(path, ffmpeg, first=0):
+    """Samples from sample number `first` on: exactly the samples a read from the start gives there (same timestamps
+    for the fps filter, a second of lead-in, then trim; phone video with an uneven frame rate needs this)."""
     probe = cv2.VideoCapture(path)
     w, h = probe.get(cv2.CAP_PROP_FRAME_WIDTH), probe.get(cv2.CAP_PROP_FRAME_HEIGHT)
     probe.release()
     sh = int(round(SW * h / max(1, w) / 2) * 2) or 180
-    proc = subprocess.Popen([ffmpeg, "-v", "error", "-i", path, "-vf", f"fps={SAMPLE_FPS},scale={SW}:{sh}", "-f", "rawvideo",
+    seek, trim = [], ""
+    if first:
+        back = min(first, SAMPLE_FPS)
+        seek = ["-copyts", "-start_at_zero", "-ss", f"{max(0.0, (first - back) / SAMPLE_FPS - 0.0005):.6f}"]
+        trim = f",trim=start_pts={first}"
+    proc = subprocess.Popen([ffmpeg, "-v", "error", *seek, "-i", path, "-vf", f"fps={SAMPLE_FPS}{trim},scale={SW}:{sh}", "-f", "rawvideo",
                              "-pix_fmt", "bgr24", "-"], stdout=subprocess.PIPE,
                             creationflags=0x08000000 if sys.platform == "win32" else 0)
     n = SW * sh * 3
@@ -33,7 +42,20 @@ def frames(path, ffmpeg):
         if len(buf) < n:
             break
         yield np.frombuffer(buf, np.uint8).reshape(sh, SW, 3)
+    proc.stdout.close()
     proc.wait()
+
+
+_RADIAL = {}
+
+
+def radial(hh, ww):
+    """Offsets from the frame centre (same numbers as before, built once per frame size)."""
+    if (hh, ww) not in _RADIAL:
+        ry, rx = np.mgrid[0:hh, 0:ww].astype(np.float32)
+        rx, ry = rx - ww / 2, ry - hh / 2
+        _RADIAL[(hh, ww)] = (rx, ry, np.sqrt(rx ** 2 + ry ** 2) + 1e-3)
+    return _RADIAL[(hh, ww)]
 
 
 class Person:
@@ -70,10 +92,15 @@ def colourfulness(bgr):
     return float(np.sqrt(rg.std() ** 2 + yb.std() ** 2) + 0.3 * np.sqrt(rg.mean() ** 2 + yb.mean() ** 2))
 
 
-def analyse(path, model, ffmpeg):
+def analyse(path, model, ffmpeg, start=0, end=None):
+    """Rows for samples [start, end). A part that starts later also reads the sample before `start`, so motion, cuts
+    and the every-other-sample person reading continue exactly as in one pass; that extra row is dropped."""
     person = Person(model)
     rows, prev_gray, prev_hist = [], None, None
-    for i, f in enumerate(frames(path, ffmpeg)):
+    first = max(0, start - 1)
+    for i, f in enumerate(frames(path, ffmpeg, first), first):
+        if end is not None and i >= end:
+            break
         gray = cv2.cvtColor(f, cv2.COLOR_BGR2GRAY)
         hsv = cv2.cvtColor(f, cv2.COLOR_BGR2HSV)
         hist = cv2.calcHist([hsv], [0, 1], None, [16, 8], [0, 180, 0, 256])
@@ -85,21 +112,21 @@ def analyse(path, model, ffmpeg):
             mag = np.linalg.norm(flow, axis=2)
             motion = float(mag.mean())
             cam = float(np.linalg.norm(np.median(flow.reshape(-1, 2), axis=0)))  # global (camera) motion
-            hh, ww = gray.shape
-            ry, rx = np.mgrid[0:hh, 0:ww].astype(np.float32)
-            rx, ry = rx - ww / 2, ry - hh / 2
-            rn = np.sqrt(rx ** 2 + ry ** 2) + 1e-3
+            rx, ry, rn = radial(*gray.shape)
             zoom = float(np.mean((flow[..., 0] * rx + flow[..., 1] * ry) / rn))  # >0 push in, <0 pull out
         lab = cv2.cvtColor(f, cv2.COLOR_BGR2LAB).reshape(-1, 3).astype(np.float32)
         sat = cv2.cvtColor(f, cv2.COLOR_BGR2HSV)[..., 1]
-        area, pos = person(f) if i % 2 == 0 else (rows[-1]["person"], rows[-1]["pos"]) if rows else (0.0, None)
+        if i < start:  # the extra sample before this part: only its picture is needed (person is read on even samples)
+            area, pos = person(f) if i % 2 == 0 else (0.0, None)
+        else:
+            area, pos = person(f) if i % 2 == 0 else (rows[-1]["person"], rows[-1]["pos"]) if rows else (0.0, None)
         rows.append({"t": round(i / SAMPLE_FPS, 3), "sharp": float(cv2.Laplacian(gray, cv2.CV_32F).var()),
                      "bright": float(gray.mean() / 255), "contrast": float(gray.std() / 255), "colour": colourfulness(f),
                      "zoom": zoom, "lab": [round(float(v), 2) for v in lab.mean(0)], "lab_sd": [round(float(v), 2) for v in lab.std(0)],
                      "sat": float(sat.mean() / 255),
                      "motion": motion, "cam": cam, "cut": cut, "person": area, "pos": pos})
         prev_gray, prev_hist = gray, hist
-    return rows
+    return rows[1:] if start > 0 else rows
 
 
 def shots(rows, thr=0.42):
@@ -180,14 +207,67 @@ def classify(rows, shot_list, aud, speech_ratio=None):
     return kind, sig
 
 
+def parallel(path, model, ffmpeg, workers, out):
+    """Frame rows in `workers` time ranges plus the audio, all at once in separate processes.
+    Returns (rows, audio), or None if any part failed (the caller then does it all in one process)."""
+    import os
+
+    probe = cv2.VideoCapture(path)
+    fps, count = probe.get(cv2.CAP_PROP_FPS) or 0, probe.get(cv2.CAP_PROP_FRAME_COUNT) or 0
+    probe.release()
+    n = int(count / fps * SAMPLE_FPS) if fps > 0 and count > 0 else 0
+    workers = max(1, min(workers, n // 60))  # at least 10 seconds of footage per part
+    bounds = [round(n * i / workers) for i in range(workers)] + [-1]  # the last part reads to the end
+    cf = 0x08000000 | 0x00004000 if sys.platform == "win32" else 0
+    me = [sys.executable, "-E", "-P", os.path.abspath(__file__)]
+    files = [f"{out}.rows{i}.json" for i in range(workers)] + [f"{out}.audio.json"]
+    procs = [subprocess.Popen([*me, "--rows", path, model or "", ffmpeg, str(bounds[i]), str(bounds[i + 1]), files[i]],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=cf) for i in range(workers)]
+    procs.append(subprocess.Popen([*me, "--audio", path, ffmpeg, files[-1]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                  creationflags=cf))
+    ok = all(pr.wait() == 0 for pr in procs)
+    try:
+        if not ok:
+            return None
+        rows = []
+        for f in files[:-1]:
+            with open(f, encoding="utf-8") as fh:
+                rows += json.load(fh)
+        with open(files[-1], encoding="utf-8") as fh:
+            return rows, json.load(fh)
+    except (OSError, ValueError):
+        return None
+    finally:
+        for f in files:
+            try:
+                os.remove(f)
+            except OSError:
+                pass
+
+
 def main():
+    if sys.argv[1] == "--rows":  # worker: --rows video model ffmpeg start end(-1 = to the end) out.json
+        _, _, path, model, ffmpeg, a, b, dest = sys.argv[:8]
+        rows = analyse(path, model or None, ffmpeg, int(a), None if int(b) < 0 else int(b))
+        with open(dest, "w", encoding="utf-8") as fh:
+            json.dump(rows, fh)
+        return
+    if sys.argv[1] == "--audio":  # worker: --audio video ffmpeg out.json
+        with open(sys.argv[4], "w", encoding="utf-8") as fh:
+            json.dump(audio(sys.argv[2], sys.argv[3]), fh)
+        return
     path, out = sys.argv[1], sys.argv[2]
     model = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else None
     ffmpeg = sys.argv[4] if len(sys.argv) > 4 else "ffmpeg"
     speech_ratio = float(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5] != "" else None
-    rows = analyse(path, model, ffmpeg)
+    workers = int(sys.argv[6]) if len(sys.argv) > 6 and sys.argv[6] else 1
+    both = parallel(path, model, ffmpeg, workers, out) if workers > 1 else None
+    if both:
+        rows, aud = both
+    else:
+        rows = analyse(path, model, ffmpeg)
+        aud = audio(path, ffmpeg)
     shot_list = shots(rows)
-    aud = audio(path, ffmpeg)
     kind, sig = classify(rows, shot_list, aud, speech_ratio)
     best = sorted(shot_list, key=lambda s: -s["quality"])[:8]
     issues = []

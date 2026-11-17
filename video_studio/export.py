@@ -56,8 +56,10 @@ def export(proj: Project, platforms: list[str], video: Path | None = None) -> li
             shutil.copy2(video, dest)
         else:
             console.step(f"Exporting {p['label']} {dw}x{dh}")
-            ff.ff(["-i", str(video), "-filter_complex", reframe_filter(sw, sh, dw, dh), "-map", "0:a?", "-c:a", "copy",
-                   *ff.x264_args(proj.settings.get("quality", "standard")), "-movflags", "+faststart", str(dest)])
+            from video_studio import encoders  # fastest working encoder on this PC (x264 fallback)
+
+            encoders.encode(["-i", str(video), "-filter_complex", reframe_filter(sw, sh, dw, dh), "-map", "0:a?", "-c:a", "copy"],
+                            proj.settings.get("quality", "standard"), ["-movflags", "+faststart", str(dest)])
         out.append(dest)
         console.ok(f"{p['label']}: {dest}")
     # cover: the hook frame (big hook words over the pop-out card) when there is a hook, else 30% in

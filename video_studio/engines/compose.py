@@ -48,8 +48,10 @@ def assemble_video(clips: list[Path], durations: list[float], transitions: list[
     script = dest.with_suffix(".filter.txt")
     script.write_text(graph, encoding="utf-8")
     tmp = dest.with_suffix(".part.mp4")
-    ff.ff([*args, "-/filter_complex", str(script), "-map", "[vout]", *ff.x264_args(quality), "-r", str(fps),
-           "-an", str(tmp)], cwd=ass.parent if ass else None)
+    from video_studio import encoders  # fastest working encoder on this PC (x264 fallback), see encoders.py
+
+    encoders.encode([*args, "-/filter_complex", str(script), "-map", "[vout]"], quality, ["-r", str(fps), "-an", str(tmp)],
+                    cwd=ass.parent if ass else None)
     tmp.replace(dest)
     return dest
 

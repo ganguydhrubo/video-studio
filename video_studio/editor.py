@@ -235,6 +235,10 @@ def sense_stage(proj: Project) -> dict:
     console.step("Watching the footage (shots, light, motion, people, music)")
     ing = proj.read("ingest.json")
     tr = proj.read("transcript.json") or {}
+    from video_studio import speed  # 1.9.0: the editor brain's voice analysis runs while the footage is watched
+
+    if tr.get("words"):
+        speed.start_prosody(proj.build, _source(proj), tr["words"])
     spoken = sum(w["end"] - w["start"] for w in tr.get("words", []))
     ratio = min(1.0, spoken / max(1.0, ing["duration"]) * 1.6)
     try:
@@ -388,6 +392,9 @@ def transcribe(proj: Project) -> dict:
     src = _source(proj)
     if not ml.available("faster_whisper"):
         raise ToolError("Speech recognition needs faster-whisper.", "video-studio install whisper")
+    from video_studio import speed  # 1.9.0: the voice clean-up runs in the background from here to the cut
+
+    speed.start_voice_cleanup(proj.build, src, enhance=opts.get("enhance", True))
     model = ml.best_whisper_model(opts.get("whisper_model", "auto"))
     lang = opts.get("language") or _guess_language(proj.data.get("brief", ""))
     console.step(f"Transcribing speech locally (faster-whisper {model}{', ' + lang if lang else ''})")
@@ -646,16 +653,19 @@ def _brain(proj: Project, words: list[dict], utts: list[dict]) -> dict:
     cached = proj.read("brain.json")
     if cached:
         return cached
-    prosody = None
-    try:
-        wav = proj.build / "voice16k.wav"
-        if not wav.exists():
-            ff.ff(["-i", str(_source(proj)), "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(wav)])
-        wfile = proj.build / "words_for_prosody.json"
-        wfile.write_text(json.dumps([{"start": w["start"], "end": w["end"]} for w in words]), encoding="utf-8")
-        prosody = ml.call("prosody", audio=wav, words=wfile, timeout=600)["words"]
-    except ToolError as exc:
-        console.warn(f"Prosody analysis unavailable ({str(exc)[:100]}); using word importance only.")
+    from video_studio import speed
+
+    prosody = speed.wait_prosody(proj.build, words)  # started in the background while the footage was watched
+    if prosody is None:
+        try:
+            wav = proj.build / "voice16k.wav"
+            if not wav.exists():
+                ff.ff(["-i", str(_source(proj)), "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(wav)])
+            wfile = proj.build / "words_for_prosody.json"
+            wfile.write_text(json.dumps([{"start": w["start"], "end": w["end"]} for w in words]), encoding="utf-8")
+            prosody = ml.call("prosody", audio=wav, words=wfile, timeout=600)["words"]
+        except ToolError as exc:
+            console.warn(f"Prosody analysis unavailable ({str(exc)[:100]}); using word importance only.")
     console.step("Editor brain: reading stress, pitch and key words")
     translation = (proj.read("transcript.json") or {}).get("translation") or []
     result = brain.analyze(words, prosody, utts, translation=translation)
@@ -982,15 +992,20 @@ def cut(proj: Project) -> dict:
 
     # audio: optional denoise of the whole source once, then broadcast polish
     audio_src = proj.build / "voice_clean.wav"
+    from video_studio import speed
+
+    early = speed.wait_voice_cleanup(proj.build)  # started in the background during transcription (same command)
     if not audio_src.exists():
         raw = proj.build / "voice_raw.wav"
-        ff.ff(["-i", str(src), "-vn", "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", str(raw)])
+        if early is None or not raw.exists():
+            ff.ff(["-i", str(src), "-vn", "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", str(raw)])
         stage = raw
         if opts.get("enhance", True) and p.get("mode") != "montage" and ml.available("noisereduce"):
             console.step("Cleaning up the voice (spectral noise reduction)")
             dn = proj.build / "voice_dn.wav"
             try:
-                ml.call("denoise", audio=raw, dest=dn, strength=0.8)
+                if early is None:
+                    ml.call("denoise", audio=raw, dest=dn, strength=0.8)
                 stage = dn
             except ToolError as exc:
                 console.warn(f"Noise reduction skipped: {exc}")
@@ -1007,7 +1022,7 @@ def cut(proj: Project) -> dict:
     emphasis = set(p.get("emphasis") or [])
     pieces_dir = proj.build / "pieces"
     pieces_dir.mkdir(exist_ok=True)
-    out_pieces, t_out = [], 0.0
+    out_pieces, t_out, encodes, made = [], 0.0, [], []
     for i, pc in enumerate(pieces):
         dur = pc["end"] - pc["start"]
         words_here = {_norm(wd["text"])[0] for wd in pc["words"] if _norm(wd["text"])}
@@ -1034,13 +1049,21 @@ def cut(proj: Project) -> dict:
         vf += ",setsar=1" + (f",{grade}" if grade else "")
         dest = pieces_dir / f"p{i:04d}.mov"
         if not dest.exists():
-            ff.ff(["-ss", f"{pc['start']:.3f}", "-t", f"{dur:.3f}", "-i", str(src),
+            encodes.append((dest, ["-ss", f"{pc['start']:.3f}", "-t", f"{dur:.3f}", "-i", str(src),
                    "-ss", f"{pc['start']:.3f}", "-t", f"{dur:.3f}", "-i", str(audio_src),
                    "-filter_complex", f"[0:v]{vf},fps={fps},format=yuv420p[v];[1:a]afade=t=in:d=0.012,afade=t=out:st={max(0.0, dur - 0.015):.3f}:d=0.015,aresample=48000[a]",
                    "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "14",
-                   "-c:a", "pcm_s16le", "-t", f"{dur:.3f}", str(dest.with_suffix(".part.mov"))])
-            dest.with_suffix(".part.mov").replace(dest)
-        console.progress("cutting", i + 1, len(pieces))
+                   "-c:a", "pcm_s16le", "-t", f"{dur:.3f}", str(dest.with_suffix(".part.mov"))]))
+        made.append((pc, dest, punch))
+
+    # 1.9.0: the pieces are independent short encodes, so a few run at once (identical files, less waiting)
+    def encode_piece(job):
+        piece, args = job
+        ff.ff(args)
+        piece.with_suffix(".part.mov").replace(piece)
+
+    speed.run_all(encode_piece, encodes, speed.piece_workers(), lambda n: console.progress("cutting", n, len(encodes)))
+    for pc, dest, punch in made:
         out_pieces.append({"file": str(dest), "src_start": pc["start"], "src_end": pc["end"], "out_start": round(t_out, 3),
                            "utt": pc["utt"], "punch": punch,
                            "words": [{"text": wd["text"], "start": round(t_out + wd["start"] - pc["start"], 3),
