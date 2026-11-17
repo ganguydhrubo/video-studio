@@ -151,7 +151,7 @@ def print_report(s: dict, r: dict) -> None:
 
 
 # Sizes are what each step downloads (measured on the 1.9.0 fresh-folder test); licences are shown before anything runs.
-PYTHON_SIZE = 650_000_000      # uv + Python 3.12 + the helpers above
+PYTHON_SIZE = 400_000_000      # uv + Python 3.12 + the helpers above (about 1.2 GB on disk)
 HYPERFRAMES_SIZE = 260_000_000  # npm package + its headless browser
 # faster-whisper model files on Hugging Face (model.bin + tokenizer + vocabulary), checked 17 Nov 2026
 WHISPER_SIZES = {"small": 486_215_847, "large-v3-turbo": 1_620_000_000}
@@ -332,6 +332,9 @@ def install_all(items: list[dict], assume_yes: bool) -> bool:
 def print_tools(s: dict) -> None:
     console.step("Tools and where they came from")
     for name, good, text in verify(s):
+        if name == "Blender" and not good:  # optional: only for 3D
+            console.info(f"  Blender: not installed (optional, for 3D titles: video-studio setup --with blender)")
+            continue
         (console.ok if good else console.warn)(f"{name}: {text}")
 
 

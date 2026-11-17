@@ -14,18 +14,14 @@ temporary folder and is renamed into place, so a half-unpacked tool is never use
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import shutil
 import subprocess
 import time
-import urllib.error
-import urllib.request
-import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Sequence
 
 from video_studio import APP_NAME
 from video_studio.util import IS_WINDOWS, console
@@ -235,7 +231,19 @@ def refresh_path_from_registry() -> None:
 
 # --------------------------------------------------------------------- download
 
-urlopen: Callable = urllib.request.urlopen  # replaced in tests
+# hashlib, urllib.request and zipfile are imported only when something is downloaded: they cost about 0.1 s at
+# start-up, and every Takebloom command imports this module through detect.py.
+
+def urlopen(req, timeout: float = 60):  # replaced in tests
+    import urllib.request
+
+    return urllib.request.urlopen(req, timeout=timeout)
+
+
+def _request(url: str, headers: dict):
+    import urllib.request
+
+    return urllib.request.Request(url, headers=headers)
 
 
 def fmt_mb(n: int) -> str:
@@ -243,6 +251,8 @@ def fmt_mb(n: int) -> str:
 
 
 def _sha256(path: Path) -> str:
+    import hashlib
+
     h = hashlib.sha256()
     with path.open("rb") as fh:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
@@ -260,7 +270,7 @@ def _fetch(url: str, part: Path, size: int, label: str) -> None:
     headers = {"User-Agent": USER_AGENT}
     if have:
         headers["Range"] = f"bytes={have}-"
-    with urlopen(urllib.request.Request(url, headers=headers), timeout=60) as resp:
+    with urlopen(_request(url, headers), timeout=60) as resp:
         if have and getattr(resp, "status", 200) != 206:
             have = 0  # the server ignored the resume request: start again
         length = int(resp.headers.get("Content-Length") or 0)
@@ -281,7 +291,7 @@ def _fetch(url: str, part: Path, size: int, label: str) -> None:
                         shown = pct
                         console.progress(f"Downloading {label} (MB)", min(have, total) // 1_000_000, max(1, total // 1_000_000))
     if size and have != size:
-        raise urllib.error.URLError(f"the connection closed early ({fmt_mb(have)} of {fmt_mb(size)})")
+        raise OSError(f"the connection closed early ({fmt_mb(have)} of {fmt_mb(size)})")
 
 
 def download(urls: Sequence[str], dest: Path, sha256: str = "", size: int = 0, label: str = "", tries: int = 3) -> Path:
@@ -308,7 +318,7 @@ def download(urls: Sequence[str], dest: Path, sha256: str = "", size: int = 0, l
             except ToolboxError as exc:
                 last = str(exc)
                 break  # a checksum mismatch from this source will not fix itself: try the next mirror
-            except (urllib.error.URLError, OSError, TimeoutError) as exc:
+            except (OSError, TimeoutError) as exc:  # urllib's URLError is an OSError
                 last = getattr(exc, "reason", None) or str(exc)
                 if attempt < tries:
                     console.warn(f"Download of {label} stopped ({last}). Trying again in {2 * attempt} s.")
@@ -321,6 +331,8 @@ def download(urls: Sequence[str], dest: Path, sha256: str = "", size: int = 0, l
 # ----------------------------------------------------------------------- unpack
 
 def _safe_extract(archive: Path, target: Path) -> None:
+    import zipfile
+
     root = target.resolve()
     with zipfile.ZipFile(archive) as z:
         for member in z.infolist():
@@ -338,6 +350,8 @@ def unpack(pkg: Package, archive: Path) -> Path:
     for p in (tmp, old):
         shutil.rmtree(p, ignore_errors=True)
     console.step(f"Unpacking {pkg.label}")
+    import zipfile
+
     try:
         _safe_extract(archive, tmp)
     except zipfile.BadZipFile as exc:
@@ -562,10 +576,10 @@ def install_hyperframes(version: str) -> bool:
 
 def ollama_up(timeout: float = 1.5) -> bool:
     try:
-        with urlopen(urllib.request.Request("http://127.0.0.1:11434/api/version", headers={"User-Agent": USER_AGENT}),
+        with urlopen(_request("http://127.0.0.1:11434/api/version", {"User-Agent": USER_AGENT}),
                      timeout=timeout) as resp:
             return getattr(resp, "status", 200) == 200
-    except (urllib.error.URLError, OSError, ValueError):
+    except (OSError, ValueError):
         return False
 
 
