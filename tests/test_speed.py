@@ -156,6 +156,85 @@ class StyleWorkers(unittest.TestCase):
         self.assertLess(uhd["track_workers"], hd["track_workers"])
 
 
+class EditSideBySide(unittest.TestCase):
+    def test_run_all_keeps_job_order_and_reports_progress(self):
+        import time as _t
+
+        from video_studio import speed
+
+        seen = []
+
+        def slow_first(n):
+            _t.sleep(0.05 if n == 0 else 0)
+            return n * 10
+
+        self.assertEqual(speed.run_all(slow_first, range(6), 3, seen.append), [0, 10, 20, 30, 40, 50])
+        self.assertEqual(seen, [1, 2, 3, 4, 5, 6])
+        self.assertEqual(speed.run_all(slow_first, [], 3), [])
+
+    def test_run_all_raises_the_first_error(self):
+        from video_studio import speed
+
+        def boom(n):
+            if n == 2:
+                raise ToolError("ffmpeg failed")
+            return n
+
+        with self.assertRaises(ToolError):
+            speed.run_all(boom, range(5), 2)
+
+    def test_piece_and_sense_workers_follow_memory(self):
+        from video_studio import speed
+        from video_studio.engines import sense
+
+        self.assertEqual(speed.piece_workers(free_gb=1.1, cores=16), 1)
+        self.assertEqual(speed.piece_workers(free_gb=8, cores=16), 3)
+        self.assertEqual(speed.piece_workers(free_gb=8, cores=4), 1)
+        self.assertEqual(sense.workers(cores=16, free_gb=1.5), 1)
+        self.assertEqual(sense.workers(cores=16, free_gb=8), 4)
+        self.assertEqual(sense.workers(cores=4, free_gb=8), 1)
+
+    def test_voice_cleanup_runs_in_the_background_and_is_picked_up_by_the_cut(self):
+        from video_studio import speed
+        from video_studio.engines import ff, ml
+
+        with tempfile.TemporaryDirectory() as tmp:
+            build = Path(tmp)
+            calls = []
+
+            def fake_call(cmd, **kw):
+                calls.append(cmd)
+                Path(kw["dest"]).write_bytes(b"RIFF")
+                return {"ok": True}
+
+            with patch.object(ml, "available", lambda m: True), patch.object(ml, "call", fake_call), \
+                    patch.object(ff, "ff", lambda args, **kw: Path(args[-1]).write_bytes(b"RIFF")):
+                self.assertTrue(speed.start_voice_cleanup(build, build / "source.mov"))
+                self.assertFalse(speed.start_voice_cleanup(build, build / "source.mov"))  # never twice
+                self.assertEqual(speed.wait_voice_cleanup(build), build / "voice_dn.wav")
+            self.assertEqual(calls, ["denoise"])
+            self.assertTrue((build / "voice_raw.wav").exists())
+            self.assertFalse((build / "voice_dn.part.wav").exists())
+            self.assertIsNone(speed.wait_voice_cleanup(build))  # nothing running any more
+            self.assertFalse(speed.start_voice_cleanup(build, build / "source.mov"))  # already cleaned
+
+    def test_voice_cleanup_failure_leaves_the_cut_to_do_it(self):
+        from video_studio import speed
+        from video_studio.engines import ff, ml
+
+        with tempfile.TemporaryDirectory() as tmp:
+            build = Path(tmp)
+
+            def bad_call(cmd, **kw):
+                raise ToolError("ML helper 'denoise' failed")
+
+            with patch.object(ml, "available", lambda m: True), patch.object(ml, "call", bad_call), \
+                    patch.object(ff, "ff", lambda args, **kw: Path(args[-1]).write_bytes(b"RIFF")):
+                self.assertTrue(speed.start_voice_cleanup(build, build / "source.mov"))
+                self.assertIsNone(speed.wait_voice_cleanup(build))
+            self.assertFalse(speed.start_voice_cleanup(build, build / "source.mov", enhance=False))
+
+
 def _cv2_python():
     for cmd in ([sys.executable], ["py", "-3.13"], ["py", "-3"]):
         try:
@@ -289,3 +368,23 @@ class TwoPassStyle(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(PY and FFMPEG, "needs FFmpeg and a Python with OpenCV")
+class ParallelSense(unittest.TestCase):
+    def test_parallel_sense_gives_the_same_result(self):
+        helper = ROOT / "video_studio" / "helpers" / "sense_helper.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            clip = Path(tmp) / "clip.mp4"
+            subprocess.run([FFMPEG, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=30:d=21", "-f", "lavfi",
+                            "-i", "sine=f=440:d=21", "-pix_fmt", "yuv420p", "-shortest", str(clip)], check=True)
+            out = []
+            for workers in (1, 2):
+                dest = Path(tmp) / f"sense{workers}.json"
+                res = subprocess.run([*PY, "-E", "-P", str(helper), str(clip), str(dest), "", FFMPEG, "0.9", str(workers)],
+                                     capture_output=True, text=True, timeout=600)
+                self.assertEqual(res.returncode, 0, res.stderr[-1500:])
+                out.append(json.loads(dest.read_text(encoding="utf-8")))
+            self.assertEqual(len(out[0]["timeline"]), 126)
+            self.assertEqual(out[0], out[1])
+            self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), ["clip.mp4", "sense1.json", "sense2.json"])
