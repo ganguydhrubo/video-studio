@@ -18,6 +18,9 @@ Video Studio's own code is MIT. It **does not bundle** third-party tools except 
 | Windows SAPI voices | fallback narration | Windows licence | |
 | noisereduce | voice cleanup | MIT | |
 | MediaPipe / OpenCV | face tracking | Apache-2.0 | |
+| MediaPipe selfie-multiclass model | fast background cut-out | Apache-2.0 | downloaded by setup (16 MB) |
+| BiRefNet lite (swin-v1-tiny, general) ONNX, [ZhengPeng7/BiRefNet](https://github.com/ZhengPeng7/BiRefNet) | optional best-quality cut-out (1.9.0) | MIT | 214 MB, downloaded only when you choose Best quality and allow it, from the publisher's GitHub release; SHA-256 `5600024376f572a557870a5eb0afb1e5961636bef4e1e22132025467d0f03333` is checked (the publisher gives none; computed from the release file) |
+| onnxruntime | runs BiRefNet lite | MIT | already installed with kokoro-onnx in the helper Python |
 | librosa | beat detection | ISC | |
 | OpenTimelineIO (format only) | timeline export | Apache-2.0 | the studio writes the JSON itself; the library is not required |
 | Claude Code, Codex, Gemini CLI, Qwen Code | AI director | proprietary / Apache-2.0 (Gemini, Qwen, Codex CLI code) | you use your own accounts; the providers' terms apply |
@@ -31,4 +34,5 @@ Video Studio's own code is MIT. It **does not bundle** third-party tools except 
 - **edge-tts:** uses an unofficial Microsoft endpoint, so it is not used by default.
 - **Olive / Natron:** dormant.
 - **Generative video (Wan 2.2, LTX-Video, HunyuanVideo):** open weights, but they need a 12–24 GB+ GPU and can't run on the target laptop (16 GB RAM, Intel iGPU). Not integrated yet; see known limitations.
+- **Cut-out models not used (1.9.0):** MODNet, RMBG-2.0 and MatAnyone are on the excluded list (non-commercial terms on the weights); the larger BiRefNet files (940 MB to 1.1 GB) are too heavy for the target laptop.
 - **Music:** generated procedurally, so there are no sample or licence issues. A user-supplied `--music-file` is the user's responsibility.

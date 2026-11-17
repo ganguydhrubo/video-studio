@@ -22,10 +22,9 @@
       const lines = [];
       if (!r.model_present) lines.push(r.download || "Best quality needs a one-time model download.");
       lines.push(file ? (r.estimate_text || "") : "Add the video to see how long it will take on this PC.");
-      const check = r.check || {};
-      if (check.level && check.level !== "ok") {
-        lines.push(...(check.messages || []).filter(m => !/^Expected time/.test(m) && !lines.includes(m) && !/download/.test(m)));
-      }
+      const check = r.check || {}, known = r.estimate && r.estimate.known;
+      lines.push(...(check.messages || []).filter(m => (/^Expected time/.test(m) ? file && !known : check.level !== "ok")
+        && !lines.includes(m) && !/download/.test(m)));
       dl.hidden = !!r.model_present;
       hint.textContent = lines.filter(Boolean).join(" ");
       hint.hidden = !hint.textContent;

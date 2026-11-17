@@ -350,7 +350,10 @@ def _summary(t: str, lim: dict, features: list[dict]) -> str:
     return text
 
 
-CUTOUT_BEST_WORK = 6.0  # rough, until this PC has measured its own best-quality speed (matting.estimate)
+# Best-quality cut-out, used only until this PC has measured its own speed (matting.estimate). Measured 17 Nov 2026 on
+# the 13th-gen i7 laptop (a "plus" PC, other jobs running): a 6 s 1080x1920 clip took 375 s, about 62 s of work per
+# second of footage, which is 4x the plus-tier figure. The fast cut-out of the same clip took 23 s.
+CUTOUT_BEST_WORK = 4.0
 # Work per second of output compared with a full edit (speech-to-text, planning, effects), measured on a
 # 13th-gen i7 laptop: a photo video took 2 s per second, a restyle about 1.3, a person cut-out about 13.
 # The best-quality cut-out (1.9.0) uses its own measured speed when this PC has one (video_studio/matting.py).

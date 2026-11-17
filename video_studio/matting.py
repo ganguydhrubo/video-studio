@@ -158,7 +158,7 @@ def estimate(seconds: float, fps: float, quality: str = "best") -> dict:
 
 def describe(est: dict) -> str:
     if not est.get("known"):
-        return "Time not measured on this PC yet; the first run measures it."
+        return "Best-quality speed is not measured on this PC yet; the first run measures it."
     s = est["seconds"]
     text = f"{s:.0f} seconds" if s < 90 else f"{s / 60:.0f} minutes" if s < 5400 else f"{s / 3600:.1f} hours"
     return f"Expected time for the cut-out: about {text} ({est['basis']})."

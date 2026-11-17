@@ -197,6 +197,9 @@ class BiRefNet:
 
 # ---------------------------------------------------------------- flow carry
 
+_GRIDS: dict = {}
+
+
 def warp(alpha, flow):
     """Pull `alpha` (keyframe) into the current frame: flow maps current-frame pixels to keyframe pixels."""
     import cv2
@@ -205,9 +208,15 @@ def warp(alpha, flow):
     h, w = alpha.shape[:2]
     if flow.shape[:2] != (h, w):
         sy, sx = h / flow.shape[0], w / flow.shape[1]
-        flow = cv2.resize(flow, (w, h), interpolation=cv2.INTER_LINEAR) * np.array([sx, sy], np.float32)
-    gx, gy = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
-    return cv2.remap(alpha, gx + flow[..., 0], gy + flow[..., 1], cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+        flow = cv2.resize(flow, (w, h), interpolation=cv2.INTER_LINEAR)
+        flow[..., 0] *= sx
+        flow[..., 1] *= sy
+    if (h, w) not in _GRIDS:  # the pixel grid is the same for every frame: build it once
+        _GRIDS[(h, w)] = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
+    gx, gy = _GRIDS[(h, w)]
+    flow[..., 0] += gx
+    flow[..., 1] += gy
+    return cv2.remap(alpha, flow, None, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
 
 
 def best(args: argparse.Namespace) -> None:
@@ -239,6 +248,7 @@ def best(args: argparse.Namespace) -> None:
     fw, fh = max(8, round(ww * fs)), max(8, round(wh * fs))
     gap = max(1, round(fps / max(0.1, args.keys_per_second)))
     radius = max(2, round(max(ww, wh) / 240))
+    gsub = max(1, round(max(ww, wh) / 640))  # guided-filter coefficients at about 640 px, applied at full size
 
     t0 = time.time()
     net = BiRefNet(args.model, args.threads)
@@ -285,7 +295,7 @@ def best(args: argparse.Namespace) -> None:
         a1 = warp(k1[1], dis.calc(item[1], k1[0][1], None))
         alpha = (1.0 - t) * a0 + t * a1
         unsure = np.abs(a0 - a1) > 0.5
-        if seg is not None and unsure.mean() > 0.004:  # the two keyframes disagree: a fast move; MediaPipe decides there
+        if seg is not None and unsure.mean() > 0.02:  # the two keyframes disagree: a fast move; MediaPipe decides there
             person = cv2.resize(seg(item[0]), (alpha.shape[1], alpha.shape[0]), interpolation=cv2.INTER_LINEAR)
             alpha = np.where(unsure, person, alpha)
             timing["fixes"] += 1
@@ -294,7 +304,7 @@ def best(args: argparse.Namespace) -> None:
     def emit(item, alpha, is_key):
         work = item[0]
         guide = cv2.cvtColor(work, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
-        m = ml._guided(guide, alpha.astype(np.float32), radius, 2e-3, sub=1 if max(ww, wh) <= 960 else 2)
+        m = ml._guided(guide, alpha.astype(np.float32), radius, 2e-3, sub=gsub)
         m = np.clip((m - 0.04) / 0.92, 0.0, 1.0)  # no faint veil outside, fully solid inside
         if prev[0] is not None and args.smooth > 0:  # light flicker guard that backs off where the matte moves
             weight = args.smooth * np.clip(1.0 - np.abs(m - prev[0]) * 3.0, 0.0, 1.0)
