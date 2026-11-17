@@ -6,6 +6,7 @@ import unittest
 import wave
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 
@@ -156,14 +157,38 @@ class Sound(unittest.TestCase):
         self.assertLess(abs(jl[hi - 1] - plain[hi - 1]), 0.01)       # the trailing sound fades right out
 
 
-class Switches(unittest.TestCase):
-    def proj(self, **opts):
-        return SimpleNamespace(data={"edit_options": opts}, read=lambda name: {})
+class PlainVoice(unittest.TestCase):
+    def test_each_piece_sounds_exactly_under_its_picture(self):
+        tmp = Path(tempfile.mkdtemp())
+        rng = np.random.default_rng(1)
+        write(tmp / "src.wav", 0.3 * rng.standard_normal(20 * SR).astype("float32"))
+        src = read(tmp / "src.wav")
+        # pictures are whole frames, a little longer than the sound: piece 2 starts at 2.033, not 2.0
+        pcs = [piece("u1", 6.0, 8.0, 0.0), piece("u2", 11.0, 13.0, 2.0333)]
+        out = read(jlcut.plain_voice(pcs, tmp / "src.wav", 4.1, tmp / "plain.wav"))
+        self.assertEqual(len(out), int(round(4.1 * SR)))
+        k = int(round(2.0333 * SR))
+        mid = slice(k + SR // 10, k + SR)
+        src_mid = slice(int(11.0 * SR) + SR // 10, int(11.0 * SR) + SR)
+        self.assertLess(np.max(np.abs(out[mid] - src[src_mid])), 1e-4)   # sample-exact, no drift
+        self.assertEqual(float(np.max(np.abs(out[int(2.001 * SR):int(2.03 * SR)]))), 0.0)  # the frame gap stays quiet
 
-    def test_hard_cuts_and_montages_are_left_alone(self):
+
+class Switches(unittest.TestCase):
+    def proj(self, root, **opts):
+        return SimpleNamespace(data={"edit_options": opts}, read=lambda name: {}, build=root)
+
+    def test_hard_cuts_and_montages_get_no_j_or_l_cut(self):
+        tmp = Path(tempfile.mkdtemp())
+        write(tmp / "src.wav", np.full(20 * SR, 0.1, dtype="float32"))
         pcs = [piece("u1", 6.0, 8.0, 0.0), piece("u2", 11.0, 14.0, 2.0)]
-        self.assertEqual(jlcut.apply(self.proj(hard_cuts=True), {}, [], pcs, Path("x"), Path("y"))["jl"], [])
-        self.assertEqual(jlcut.apply(self.proj(), {"mode": "montage"}, [], pcs, Path("x"), Path("y"))["jl"], [])
+        with patch("video_studio.engines.ff.duration", return_value=5.0):
+            r = jlcut.apply(self.proj(tmp, hard_cuts=True), {}, [], pcs, tmp / "src.wav", Path("cut.mov"))
+        self.assertEqual(r["jl"], [])
+        self.assertEqual(r["voice"], r["voice_plain"])          # still the drift-free voice track
+        r = jlcut.apply(self.proj(tmp), {"mode": "montage"}, [], pcs, tmp / "src.wav", Path("cut.mov"))
+        self.assertEqual(r["jl"], [])
+        self.assertNotIn("voice", r)                            # a montage keeps its own sound handling
 
     def test_prompt_words_turn_it_off(self):
         for brief in ("hard cuts only please", "no J-cuts", "reel, no split edits", "no l cuts"):

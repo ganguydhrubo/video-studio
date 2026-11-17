@@ -100,7 +100,7 @@
 - Pictures added to an edit appear once each, in the order added, as short moving cutaways (1.2 to 2.6 seconds) while the sound carries on. A short film fits fewer pictures; the log says how many were left out. Pictures never cover the first moment, the last second, a giant-text moment or a B-roll cutaway. You cannot yet choose where a picture goes.
 - A song in the drop is used as the music, from its start. Only one song per film. With "no music" in the prompt and a song in the drop, the song is still used.
 - The prompt is read by fixed word rules (English with some common Hinglish words), not by AI, so it works offline and instantly. Words outside the rules are not turned into settings, but the AI editor still reads the whole prompt for the story. Unusual phrasing may be missed; the "Takebloom will" list shows exactly what was understood before the edit starts. Fine-tune choices always win over the prompt.
-- Not possible in an edit yet, and said so when asked: 3D objects or 3D text, slow motion inside an edit (use Restyle), a logo or watermark placement, a new voice-over, stock footage, created or AI-generated footage. Background removal is the separate Remove background tool.
+- Not possible in an edit yet, and said so when asked: 3D objects or 3D text, slow motion inside an edit (use Restyle), a logo or watermark placement, a new voice-over, created or AI-generated footage. Stock footage needs your own free key (see the J-cuts, L-cuts and free stock footage section). Background removal is the separate Remove background tool.
 
 ## Speech 1.9.0
 

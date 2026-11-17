@@ -29,6 +29,9 @@ How much, and what stays exact
   at exactly the same moment as before, in sync with its picture, and the film's length does not change.
 - No clicks: the extra sound fades in and out with short soft fades, and where it meets the piece it came from it
   takes over the piece's own 12-15 ms fade exactly, so the joined sound is continuous.
+- The voice track itself is laid sample by sample, each piece's sound exactly under its own picture (plain_voice).
+  Before 1.9.0 the pieces' sound was joined end to end, which ran a few milliseconds early per piece (each piece's
+  picture is a whole number of frames, a little longer than its sound): 30 to 95 ms early in a 9-piece test edit.
 - If the extra sound would be silent (below -60 dBFS, for example cleaned voice with no room sound), that join is
   left as a plain cut, because an inaudible J-cut is not a J-cut.
 """
@@ -217,6 +220,31 @@ def _gain(kind: str, amount: float, sr: int):
     return g
 
 
+def plain_voice(pieces: list[dict], source_wav: Path, total: float, dest: Path) -> Path:
+    """The cut's voice track, built sample by sample: each piece's sound placed exactly where its picture starts
+    (out_start), with the same 12 ms / 15 ms fades the cut pieces have. Joining the pieces' own sound end to end
+    (the cut file) lets the sound run early by the few milliseconds each piece's picture is longer than its sound;
+    over a film that adds up (30 to 95 ms in a 9-piece test edit), so the voice is placed here instead."""
+    import numpy as np
+
+    sr = 48000
+    out = np.zeros(int(round(total * sr)), dtype="float32")
+    for pc in pieces:
+        seg, ssr = _read(source_wav, pc["src_start"], pc["src_end"])
+        if ssr != sr:
+            raise ValueError("the cleaned voice is not 48 kHz")
+        seg = seg.copy()
+        fi, fo = min(len(seg), int(FADE_IN * sr)), min(len(seg), int(FADE_OUT * sr))
+        seg[:fi] *= (np.arange(fi, dtype="float32") + 0.5) / max(1, fi)
+        if fo:
+            seg[-fo:] *= 1.0 - (np.arange(fo, dtype="float32") + 0.5) / fo
+        k0 = int(round(pc["out_start"] * sr))
+        n = max(0, min(len(seg), len(out) - k0))
+        out[k0:k0 + n] += seg[:n]
+    _write(dest, out, sr)
+    return dest
+
+
 def render(base_wav: Path, source_wav: Path, joins: list[dict], dest: Path) -> dict:
     """Add each join's extra sound on top of the plain-cut voice track. Returns sample facts for the log and tests."""
     import numpy as np
@@ -248,17 +276,19 @@ def render(base_wav: Path, source_wav: Path, joins: list[dict], dest: Path) -> d
 # ---------------------------------------------------------------- the editor's hook
 
 def apply(proj, p: dict, words: list[dict], out_pieces: list[dict], audio_src: Path, cut_file: Path) -> dict:
-    """Plan and make the J/L-cuts for a finished cut. Returns manifest fields: {"voice": wav, "jl": [...]} or {}."""
+    """The cut's voice track for the render: every piece placed exactly under its picture, plus the J/L-cuts.
+    Returns manifest fields {"voice": wav, "jl": [...]}; a music montage keeps the cut file's own sound."""
     from video_studio.engines import ff
 
     opts = proj.data.get("edit_options") or {}
-    if opts.get("hard_cuts"):
-        console.info("Joins: hard cuts only, as you asked (no J-cuts or L-cuts)")
-        return {"jl": [], "jl_off": "you asked for hard cuts"}
     if p.get("mode") == "montage":
         return {"jl": [], "jl_off": "music montage cut on the beat"}
-    if len(out_pieces) < 2:
-        return {"jl": []}
+    audio_dir = proj.build / "audio"
+    audio_dir.mkdir(exist_ok=True)
+    plain = plain_voice(out_pieces, audio_src, ff.duration(cut_file), audio_dir / "voice_cut_plain.wav")
+    if opts.get("hard_cuts"):
+        console.info("Joins: hard cuts only, as you asked (no J-cuts or L-cuts)")
+        return {"voice": str(plain), "voice_plain": str(plain), "jl": [], "jl_off": "you asked for hard cuts"}
     bounds = clip_bounds(proj.read("ingest.json") or {})
     shots = (proj.read("sense.json") or {}).get("shots") or []
     joins, notes = plan(out_pieces, words, bounds, shots, lambda a, b: level_db(audio_src, a, b))
@@ -266,12 +296,8 @@ def apply(proj, p: dict, words: list[dict], out_pieces: list[dict], audio_src: P
         console.info(f"    J/L-cut {n}")
     if not joins:
         if notes:
-            console.info(f"Joins: {len(notes)} change of clip or moment, all left as plain cuts (see above)")
-        return {"jl": [], "jl_notes": notes}
-    audio_dir = proj.build / "audio"
-    audio_dir.mkdir(exist_ok=True)
-    plain = audio_dir / "voice_cut_plain.wav"
-    ff.ff(["-i", str(cut_file), "-vn", "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", str(plain)])
+            console.info(f"Joins: {len(notes)} change(s) of clip or moment, all left as plain cuts (see above)")
+        return {"voice": str(plain), "voice_plain": str(plain), "jl": [], "jl_notes": notes}
     dest = audio_dir / "voice_jl.wav"
     render(plain, audio_src, joins, dest)
     for j in joins:
