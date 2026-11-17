@@ -3,9 +3,17 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const reduced=matchMedia('(prefers-reduced-motion: reduce)');
 let paused=reduced.matches,position=0,last=0,frame=0,selected=-1,audio=null,sound=false;
 const canvas=$('#film'),ctx=canvas.getContext('2d');
-const scenes=[{name:'01 / THE MOUNTAINS',title:'Go somewhere<br><em>unexpected.</em>'},{name:'02 / THE COAST',title:'Find your<br><em>own rhythm.</em>'},{name:'03 / THE DUNES',title:'Make the<br><em>moment last.</em>'}];
+const scenes=[{name:'01 / HOWRAH GHATS',title:'Go somewhere<br><em>unexpected.</em>'},{name:'02 / TEA HILLS',title:'Find your<br><em>own rhythm.</em>'},{name:'03 / HOME DESK',title:'Make the<br><em>moment last.</em>'}];
+const imgs=['scene-1.jpg','scene-2.jpg','scene-3.jpg'].map((src,i)=>{const im=new Image();im.onload=()=>{const th=$$('.thumb')[i];if(th)landscape(th.getContext('2d'),th.width,th.height,i,0);draw()};im.src=src;return im});
 function polygon(c,points,fill){c.fillStyle=fill;c.beginPath();points.forEach((p,i)=>i?c.lineTo(...p):c.moveTo(...p));c.closePath();c.fill()}
 function landscape(c,w,h,scene,t){
+ const im=imgs[scene];
+ if(im&&im.complete&&im.naturalWidth){
+  const p=(t%8)/8,zoom=1.06+p*.08,iw=im.naturalWidth,ih=im.naturalHeight,scale=Math.max(w/iw,h/ih)*zoom;
+  const dw=iw*scale,dh=ih*scale,fy=[.3,.32,.34][scene],dx=(w-dw)/2+Math.sin(t*.25)*12,dy=(h-dh)*fy;
+  c.save();c.drawImage(im,dx,dy,dw,dh);
+  const v=c.createRadialGradient(w/2,h*.42,w*.12,w/2,h/2,w*.66);v.addColorStop(0,'#102a2010');v.addColorStop(1,'#102a2078');c.fillStyle=v;c.fillRect(0,0,w,h);c.restore();return;
+ }
  c.save();c.scale(w/1000,h/600);
  const sky=c.createLinearGradient(0,0,0,600); const colors=[['#8daea8','#dce0ba'],['#99c1bc','#dbe2c6'],['#c6b599','#eee0ba']][scene];sky.addColorStop(0,colors[0]);sky.addColorStop(1,colors[1]);c.fillStyle=sky;c.fillRect(0,0,1000,600);
  const light=c.createRadialGradient(750,120,0,750,120,260);light.addColorStop(0,'#fff3cb80');light.addColorStop(1,'#fff3cb00');c.fillStyle=light;c.fillRect(0,0,1000,600);c.fillStyle='#f5edcb';c.beginPath();c.arc(750,120,scene===2?45:22,0,Math.PI*2);c.fill();
