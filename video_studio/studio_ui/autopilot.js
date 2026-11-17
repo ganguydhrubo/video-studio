@@ -43,7 +43,7 @@
     if (!list.length) { stop(); return say(copying() ? "It starts by itself as soon as the copy finishes." : "Drop a video and it starts by itself."); }
     if (copying()) { stop(); return say("It starts by itself as soon as every copy finishes."); }
     if (A.started.has(sig)) { stop(); return say("This video is already being made. Add another video to start a new one."); }
-    if (A.paused) { stop(); return say("Automatic start is paused while you add details. Press <b>Create my draft</b> when you are ready."); }
+    if (A.paused) { stop(); return say("Paused while you describe it. Press <b>Create my draft</b> (or Ctrl + Enter) when you are ready."); }
     if (A.timer && A.sig === sig) return;
     stop(); A.sig = sig; A.left = WAIT; tick(); A.timer = setInterval(tick, 1000);
   }
@@ -60,7 +60,7 @@
       return;
     }
     // the sentence is written once (one screen-reader announcement); only the number changes each second
-    say(`<b>Starting by itself in <span id="autoSec"></span> s.</b> No need to fill anything in. <button type="button" class="btn" id="autoWait">Wait, I want to add details</button>`);
+    say(`<b>Starting by itself in <span id="autoSec"></span> s.</b> No need to fill anything in. Want to describe it first? Click in the prompt box. <button type="button" class="btn" id="autoWait">Wait</button>`);
     const sec = note.querySelector("#autoSec");
     if (sec) { sec.textContent = A.left; sec.setAttribute("aria-hidden", "true"); }
     const wait = note.querySelector("#autoWait");
@@ -75,6 +75,10 @@
     if (e.type === "click" && !t.closest("button, select, input, summary, .chip")) return;
     if (!A.paused && (A.timer || ready().length)) { A.paused = true; stop(); arm(); }
   };
+  // clicking into the prompt (or any text box) during the countdown means "let me describe it first"
+  card.addEventListener("focusin", e => {
+    if (A.timer && e.target.matches && e.target.matches("textarea, input[type=text], input[type=number]")) { A.paused = true; stop(); arm(); }
+  }, true);
   card.addEventListener("input", choosing, true);
   card.addEventListener("click", choosing, true);
   box.addEventListener("change", () => { save(box.checked); A.paused = false; if (!box.checked) { stop(); say(""); } arm(); });

@@ -230,6 +230,7 @@ def project_summary(root: Path) -> dict | None:
             "understood": _understood(root),
             "effects": ((read_json(root / "build" / "style_plan.json", {}) or {}).get("reasons") or [])[:20],
             "music": (read_json(root / "build" / "edit_manifest.json", {}) or {}).get("music"),
+            "asked": read_json(root / "understood.json", {}) or {},
             "timeline": _timeline(root)}
 
 
@@ -484,8 +485,8 @@ class Handler(BaseHTTPRequestHandler):
             self._file(resource_path("assets", "fonts", "InstrumentSerif-Italic.ttf"))
         elif url.path == "/brief-assistant.js":
             self._file(resource_path("studio_ui", "brief-assistant.js"))
-        elif url.path == "/autopilot.js":
-            self._file(resource_path("studio_ui", "autopilot.js"))
+        elif url.path in ("/autopilot.js", "/understand.js"):
+            self._file(resource_path("studio_ui", url.path.lstrip("/")))
         elif url.path == "/api/health":
             self._json({"app": "VideoStudio", "version": __version__, "pid": os.getpid()})
         elif url.path == "/api/capabilities":
@@ -596,6 +597,10 @@ class Handler(BaseHTTPRequestHandler):
         body = self._body()
         if url.path == "/api/brief/interpret":
             return self._json(brief_assistance(body))
+        if url.path == "/api/brief/understand":   # instant, local: what the prompt will set, and what cannot be done
+            from video_studio import understand
+
+            return self._json(understand.understand(str(body.get("brief", ""))[:4000]))
         if url.path == "/api/pick-files":
             return self._json(pick_local_files(), 410)
         if url.path == "/api/local-file":
@@ -1021,7 +1026,22 @@ def start_job(body: dict) -> dict:
     if not dropped["videos"]:
         return {"error": "Add at least one video clip. Pictures and a music file can go with it."}
     files = [str(p) for group in ("videos", "pictures", "music") for p in dropped[group]][:60]
-    args = ["edit", *files, "--brief-file", str(_write_brief(root, body.get("brief", ""))), "--out", str(root), "--name", name, *_opts(o)]
+    # the prompt sets every choice the person left on Auto (understand.py); their Fine-tune choices win
+    from video_studio import understand
+
+    seen = understand.understand(body.get("brief", ""))
+    chosen = dict(body.get("options") or {})   # what the person picked themselves (before machine defaults)
+    if not chosen.get("aspect_chosen"):
+        chosen.pop("aspect", None)
+    from_prompt = understand.edit_args(seen["options"], chosen)
+    if "--aspect" in from_prompt:
+        o.pop("aspect", None)
+    if dropped["music"] and "--no-music" in from_prompt:
+        from_prompt.remove("--no-music")   # a song in the drop is the music; "no music" then means no generated bed
+    args = ["edit", *files, "--brief-file", str(_write_brief(root, body.get("brief", ""))), "--out", str(root), "--name", name,
+            *_opts(o), *from_prompt]
+    root.mkdir(parents=True, exist_ok=True)
+    write_json(root / "understood.json", {"brief": body.get("brief", ""), **seen, "applied": from_prompt})
     job = Job(mode, args, root, name)
     JOBS[job.id] = job
     job.start()

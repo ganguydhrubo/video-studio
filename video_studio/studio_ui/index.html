@@ -1091,7 +1091,8 @@ function stageAspect() {
 }
 $("#aspect").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
-  S.aspect = b.dataset.v; $("#aspect").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  S.aspect = b.dataset.v; if (!S.aspectAuto) S.aspectChosen = true;   // understand.js may move it from the prompt
+  $("#aspect").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
   $("#aspectHint").textContent = ASPECT_HINT[S.aspect]; stageAspect();
 });
 $("#brief").addEventListener("input", syncQuest);
@@ -1197,6 +1198,7 @@ async function create() {
     voice: $("#voice").value, style: $("#style").value, target: $("#target").value, fx: $("#fx").value, like: $("#like").value,
     platforms: [...new Set([S.aspect === "16:9" ? "youtube" : S.aspect === "1:1" ? "square" : S.aspect === "4:5" ? "feed45" : "reels", ...S.platforms])] };
   options.template = $("#template").value; options.grade = $("#grade").value; options.transition = $("#transition").value;
+  options.aspect_chosen = !!S.aspectChosen;
   const body = { mode: S.mode, name: $("#name").value, brief: $("#brief").value, options };
   if (pcLast && pcLast.level === "stop" && QUICK.includes(S.mode)) return $("#formErr").textContent = (pcLast.messages || []).join(" ");
   if (QUICK.includes(S.mode)) {
@@ -2003,5 +2005,6 @@ setTimeout(() => { if (!S.projects.length) api("/api/projects").then(r => { S.pr
 </script>
 <script src="/brief-assistant.js"></script>
 <script src="/autopilot.js"></script>
+<script src="/understand.js"></script>
 </body>
 </html>
