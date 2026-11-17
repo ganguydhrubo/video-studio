@@ -66,7 +66,7 @@ def wrap_title(text: str, width: int, height: int) -> tuple[list[str], int]:
 
 
 def cover_filter(src_w: int, src_h: int, width: int, height: int, lines: list[str], size: int,
-                 font: Path | None, text_files: list[Path]) -> str:
+                 font: Path | None, text_files: list[Path], keep_top: bool = False) -> str:
     from video_studio.engines.ff import filter_escape
 
     src, dst = src_w / src_h, width / height
@@ -75,7 +75,8 @@ def cover_filter(src_w: int, src_h: int, width: int, height: int, lines: list[st
                  f"gblur=sigma={max(width, height) // 40},eq=brightness=-0.12[bg];"
                  f"[fgs]scale={width}:{height}:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2")
     else:
-        graph = f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}"
+        # keep_top: the film's own title sits near the top of the frame, so crop from the top instead of the centre
+        graph = f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}" + (":(iw-ow)/2:0" if keep_top else "")
     graph += ",setsar=1,format=yuv420p"
     if lines and font:
         top, strips = height * 0.45, 12
@@ -126,19 +127,23 @@ def make_covers(root: Path, font_dir: Path = FONT_DIR) -> dict:
     at = 1.1 if plan.get("hook_text") else min(dur * 0.3, 4.0)
     title = cover_title(root)
     font = pick_font(title, font_dir)
+    slams = (read_json(root / "build" / "style_plan.json", {}) or {}).get("slams") or []
+    in_film = any(float(x.get("t0", 99)) <= at <= float(x.get("t1", -1)) and x.get("text") for x in slams)
     saved: dict[str, str] = {}
     with tempfile.TemporaryDirectory(prefix="tb-cover-") as tmp:
         frame = ff.frame_at(film, min(at, max(0.0, dur - 0.1)), Path(tmp) / "frame.jpg")
         sw, sh = int(v["width"]), int(v["height"])
         for key, (w, h) in COVER_SHAPES.items():
-            lines, size = wrap_title(title, w, h) if font else ([], 0)
+            # the frame already shows the film's own big title: a second one only where the film sits small (blurred fill)
+            far = max(sw / sh, w / h) / min(sw / sh, w / h) > 1.6
+            lines, size = wrap_title(title, w, h) if font and (far or not in_film) else ([], 0)
             files = []
             for i, line in enumerate(lines):
                 path = Path(tmp) / f"{key}_{i}.txt"
                 path.write_text(line, encoding="utf-8")
                 files.append(path)
             dest = exports / f"cover_{key}.jpg"
-            ff.ff(["-i", str(frame), "-filter_complex", cover_filter(sw, sh, w, h, lines, size, font, files),
+            ff.ff(["-i", str(frame), "-filter_complex", cover_filter(sw, sh, w, h, lines, size, font, files, keep_top=in_film and not far),
                    "-frames:v", "1", "-q:v", "3", str(dest)], timeout=120)
             saved[key] = str(dest)
     thumb = next(iter(sorted(p for p in exports.glob("*_thumbnail.jpg"))), None)

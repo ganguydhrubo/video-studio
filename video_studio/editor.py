@@ -1176,6 +1176,8 @@ def render(proj: Project) -> Path:
                 ff.ff(["-i", m["source"], "-vn", "-ac", "2", "-ar", "48000", "-t", f"{total + 0.3:.3f}", "-c:a", "pcm_s16le", str(music_path)])
         elif s.get("music_file"):
             music_path = Path(s["music_file"])
+            m["music"] = {"source": "your song", "file": music_path.name.split("_", 1)[-1] if re.match(r"[0-9a-f]{32}_", music_path.name) else music_path.name}
+            console.info(f"Music: your song {m['music']['file']}")
         else:
             hook_end = float(splan["slams"][0]["t1"]) if splan.get("slams") and p.get("mode") != "montage" else 0.0
             pick = library_pick(d["music"], total, _music_seed(proj))

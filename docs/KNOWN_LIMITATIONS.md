@@ -75,7 +75,7 @@
 
 ## Production features 1.8.0
 
-- AI clip generation (Wan 2.2) has only been tested up to the hardware check. It has not been run on a real NVIDIA card yet. It needs Python with CUDA PyTorch, diffusers, transformers and accelerate, and a several-GB model download that you must allow. Clips are short: up to 5 seconds below 24 GB of graphics memory, 8 seconds at 24 GB or more. AMD and Intel cards cannot generate locally.
+- AI clip generation was removed in 1.9.0 (see below).
 - Hardware limits, speeds and expected times are estimates for the kind of PC until Takebloom has measured this PC on a finished edit. Hardware encoders are tested with a one-frame encode; NVIDIA NVENC and AMD AMF were not available on the release-test PC.
 - The background cut-out runs on the processor at about 4 to 7 frames a second on the release-test laptop. A 60-second clip takes several minutes. Hair edges are soft, thin objects (glasses arms) can be partly cut, and a dark area next to a person can bleed into the cut-out. Transparent WebM is slow to encode. Phone video with a variable frame rate may drift slightly. Cut-out masks are cached in the app's cache folder until you clean it.
 - In-app update install and rollback were tested with unit tests, not by installing a real update. Rollback is possible only after an update, when the installer has kept the previous copy. When running from source code, updating is done with git.
@@ -90,3 +90,14 @@
 - Covers are drawn from the finished video in the app window. The reel cover replaces the automatic thumbnail; the automatic one is kept once as `*_thumbnail_auto.jpg`. Instagram and TikTok let you upload a reel cover; YouTube Shorts only lets you pick a frame from the video.
 - Videos the window cannot play (iPhone HEVC .MOV without the HEVC extension) get a small H.264 preview copy in `_previews`. It takes a few seconds per minute of video. The edit always uses your original file.
 - Script-to-video makes animated text scenes (kinetic words, stats, quotes, calls to action) on a moving background. Real pictures appear only with `[IMAGE: path]`; 3D needs Blender. The highlighted caption word can land slightly early or late inside a word.
+
+## Automatic editing and prompts 1.9.0
+
+- Takebloom now edits only footage you shot. Script-to-video and AI clips (text-to-video, picture-to-video) are no longer in the app. The script engine still exists in the command line so older script projects can open and continue; it is not offered for new work.
+- The edit starts by itself 5 seconds after every dropped file has finished copying. Clicking into the prompt or changing any option pauses it, and then you press Create my draft. If you write the prompt first and then drop the videos, it starts by itself with your prompt.
+- One automatic retry: if the engine stops with an error, it tries once more from the stage where it stopped. A second stop is shown to you. A problem that is not temporary (for example missing speech tools, no clear speech) fails the same way twice.
+- Covers (reel 9:16, profile grid 3:4, YouTube 16:9) are made by themselves from the hook frame with the film's title in bold white. The title is drawn by FFmpeg with a Windows font (Segoe UI Bold; Nirmala UI for Hindi, Bengali and other Indian scripts). Line breaks are estimated from letter counts, so a very long word can come close to the edge. Covers you save from the cover maker are never replaced; automatic covers are remade after a re-edit.
+- Pictures added to an edit appear once each, in the order added, as short moving cutaways (1.2 to 2.6 seconds) while the sound carries on. A short film fits fewer pictures; the log says how many were left out. Pictures never cover the first moment, the last second, a giant-text moment or a B-roll cutaway. You cannot yet choose where a picture goes.
+- A song in the drop is used as the music, from its start. Only one song per film. With "no music" in the prompt and a song in the drop, the song is still used.
+- The prompt is read by fixed word rules (English with some common Hinglish words), not by AI, so it works offline and instantly. Words outside the rules are not turned into settings, but the AI editor still reads the whole prompt for the story. Unusual phrasing may be missed; the "Takebloom will" list shows exactly what was understood before the edit starts. Fine-tune choices always win over the prompt.
+- Not possible in an edit yet, and said so when asked: 3D objects or 3D text, slow motion inside an edit (use Restyle), a logo or watermark placement, a new voice-over, stock footage, created or AI-generated footage. Background removal is the separate Remove background tool.
