@@ -351,10 +351,17 @@ class TwoPassStyle(unittest.TestCase):
         self.assertLess(r["mask_err"], 1e-5)
 
     def test_one_worker_and_several_workers_give_the_same_video(self):
+        self._same_video("")
+
+    @unittest.skipUnless(os.environ.get("TB_TEST_MATTE_MODEL"), "set TB_TEST_MATTE_MODEL to a selfie_multiclass.tflite copy")
+    def test_same_video_with_the_real_matte_model(self):
+        self._same_video(os.environ["TB_TEST_MATTE_MODEL"])
+
+    def _same_video(self, model):
         outs = []
         for name, w, tw in (("one", 1, 1), ("many", 3, 2)):
-            res = subprocess.run([*PY, "-E", "-P", str(HELPER), str(self.plan(name, w, tw))], capture_output=True, text=True,
-                                 timeout=300)
+            res = subprocess.run([*PY, "-E", "-P", str(HELPER), str(self.plan(name, w, tw, model))], capture_output=True, text=True,
+                                 timeout=600)
             self.assertEqual(res.returncode, 0, (res.stdout + res.stderr)[-2000:])
             self.assertIn("STYLE_DONE 186", res.stdout)
             self.assertIn("STYLE_PROGRESS", res.stdout)  # progress is shown with one worker too

@@ -809,13 +809,15 @@ def main():
         print(f"PART_DONE {done}", flush=True)
         return
     out = Path(P["output"])
-    grand = 2 * total
+    # without the person-matte model there is nothing to track: the camera stays centred, as it always did
+    tracking = bool(P.get("matte_model")) and Path(P["matte_model"]).exists()
+    grand = 2 * total if tracking else total
 
     def say(base):
         return lambda _tag, n: print(f"STYLE_PROGRESS {base + n} {grand}", flush=True)
 
     tb = split(total, P.get("track_workers", P.get("workers", 1)), 90)
-    tparts = [str(out.with_name(f"{out.stem}.track{i}")) for i in range(len(tb) - 1)]
+    tparts = [str(out.with_name(f"{out.stem}.track{i}")) for i in range(len(tb) - 1)] if tracking else []
     rb = split(total, P.get("workers", 1), 45)
     parts = [out.with_name(f"{out.stem}.part{i}.mp4") for i in range(len(rb) - 1)]
     listing = out.with_name(out.stem + ".track.json")
@@ -823,16 +825,17 @@ def main():
     try:
         if len(tparts) == 1:
             track_range(0, total, tparts[0], "0", say(0))
-        else:
+        elif tparts:
             run_parts("--track", tb, tparts, 0, grand)
+        base = total if tracking else 0
         if len(parts) == 1:
             track = Track(tparts, total)
-            done = render_range(0, total, str(out), track, "0", say(total))
+            done = render_range(0, total, str(out), track, "0", say(base))
             track.close()
             del track
         else:
             listing.write_text(json.dumps(tparts), encoding="utf-8")
-            run_parts("--part", rb, parts, total, grand, (str(listing),))
+            run_parts("--part", rb, parts, base, grand, (str(listing),))
             if not all(pt.exists() for pt in parts):
                 print("STYLE_ERROR a part is missing", flush=True)
                 sys.exit(1)
