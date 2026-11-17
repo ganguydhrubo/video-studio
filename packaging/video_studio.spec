@@ -12,7 +12,7 @@ a = Analysis(
         (str(PKG / "blender" / "scene_builder.py"), "blender"),
         *[(str(f), "helpers") for f in sorted((PKG / "helpers").glob("*_helper.py"))],
         (str(PKG / "studio_ui" / "index.html"), "studio_ui"),
-        (str(PKG / "studio_ui", "brief-assistant.js", "autopilot.js", "understand.js", "cutout-quality.js"),
+        *[(str(f), "studio_ui") for f in sorted((PKG / "studio_ui").glob("*.js"))],
         (str(PKG / "assets" / "fonts"), "assets/fonts"),
         (str(PKG / "assets" / "english_words.txt"), "assets"),
         (str(PKG / "assets" / "provider-icons" / "LICENSE"), "licenses/provider-icons"),
