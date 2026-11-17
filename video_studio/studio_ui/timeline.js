@@ -6,7 +6,7 @@
 (() => {
   if (typeof api !== "function" || typeof S === "undefined" || !document.querySelector("#resultWrap")) return;
   const css = document.createElement("style");
-  css.textContent = `#tle{outline:none}
+  css.textContent = `#tle{outline:none;scroll-margin-top:78px}
 #tle .clip{animation:none;user-select:none;touch-action:none}
 #tle .clip.sel{box-shadow:0 0 0 2px var(--coral);z-index:4}
 #tle .clip .h{position:absolute;top:0;bottom:0;width:8px;cursor:ew-resize;background:rgba(255,255,255,.45)}
@@ -206,7 +206,7 @@
       box.innerHTML = `<h3>Piece ${i + 1} of ${m.cuts.length}</h3>
         <p class="hint">Plays at ${tc(x.start)} for ${x.len.toFixed(2)} s. Taken from ${tc(x.in)} to ${tc(x.out)} in your recording.</p>
         <div class="tle-two">${num("tleIn", "Starts in your recording (s)", x.in)}${num("tleOut", "Ends in your recording (s)", x.out)}</div>
-        <p class="hint">Your recording runs from ${tc(x.min)} to ${tc(x.max)} for this piece.</p>
+        <p class="hint">${x.max - x.min > x.out - x.in + .3 ? `You can take this piece from anywhere between ${tc(x.min)} and ${tc(x.max)} of your recording.` : "This piece can be made shorter, not longer."}</p>
         <div class="row"><button class="btn" id="tleEarlier" type="button" ${i ? "" : "disabled"}>◀ Play earlier</button><button class="btn" id="tleLater" type="button" ${i < m.cuts.length - 1 ? "" : "disabled"}>Play later ▶</button>
           <button class="btn stop" id="tleDel" type="button" ${m.cuts.length > 1 ? "" : "disabled"}>Delete piece</button></div>`;
       const set = () => change(() => { const a = +box.querySelector("#tleIn").value, b = +box.querySelector("#tleOut").value;
