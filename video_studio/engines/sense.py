@@ -37,7 +37,7 @@ def analyse(src: Path, dest: Path, speech_ratio: float | None = None) -> dict:
 
 
 def workers(cores: int | None = None, free_gb: float | None = None) -> int:
-    """Time ranges analysed side by side (each ~0.45 GB, mostly one core); the audio runs alongside them."""
+    """Time ranges analysed side by side (each ~0.6 GB with its decoder, mostly one core); the audio runs alongside."""
     from video_studio import resources
 
     cores = cores or resources.cpu_count()
