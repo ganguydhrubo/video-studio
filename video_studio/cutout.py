@@ -8,6 +8,10 @@ Two steps, so the app never imports heavy ML itself:
 
 Backgrounds: blur, colour, image, video (another clip, looped or trimmed to length), transparent
 (.webm VP9 with alpha, or .mov ProRes 4444).
+
+Quality: "fast" (default) is the MediaPipe matte above. "best" (optional, 1.9.0) uses BiRefNet lite on keyframes with
+the edge carried between them (video_studio/matting.py + helpers/matte_helper.py); its model is downloaded only
+when the person allows it.
 """
 
 from __future__ import annotations
@@ -214,31 +218,61 @@ def _video_facts(video: Path) -> dict:
             "duration": duration, "has_audio": bool(ff.stream(info, "audio"))}
 
 
-def _mask_key(video: Path, smooth: float) -> str:
+def _mask_key(video: Path, smooth: float, quality: str = "fast") -> str:
     st = video.stat()
     raw = f"{video.resolve()}|{st.st_size}|{st.st_mtime_ns}|{smooth:.3f}|{MAX_SIDE}|{STRIDE}|{MASK_VERSION}"
+    if quality != "fast":  # fast keys stay exactly as before, so masks cached by 1.8 are still used
+        from video_studio import matting
+
+        raw += "|" + matting.cache_part()
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:20]
 
 
-def make_mask(video: Path, smooth: float = 0.6, facts: dict | None = None) -> dict:
+def _best_matte(video: Path, part: Path, facts: dict, smooth: float, ffmpeg: str) -> dict:
+    from video_studio import matting
+
+    model = matting.ensure(allow_download=False)
+    mp_model = model_path()
+    resources.ensure_memory(matting.MIN_FREE_GB, "best-quality background removal")
+    frames_guess = max(1.0, facts["duration"] * facts["fps_value"])
+    est = matting.estimate(facts["duration"], facts["fps_value"])
+    timeout = max(1800.0, (est.get("seconds") or frames_guess * 10.0) * 3.0)
+    data = matting.call("best", timeout=timeout, video=video, dest=part, model=model,
+                        mp_model=mp_model if mp_model.exists() else "", ffmpeg=ffmpeg, fps=facts["fps"],
+                        smooth=min(0.5, smooth * 0.5), max_side=matting.BEST_MAX_SIDE,
+                        keys_per_second=matting.KEYS_PER_SECOND, threads=matting.default_threads())
+    matting.record_speed("best", int(data.get("frames") or 0), float(data.get("seconds") or 0),
+                         key_seconds=float(data.get("key_seconds") or 0) or None,
+                         keyframes=int(data.get("keyframes") or 0))
+    return data
+
+
+def make_mask(video: Path, smooth: float = 0.6, facts: dict | None = None, quality: str = "fast") -> dict:
     """Run the helper (or reuse a cached mask). Returns the helper's JSON plus 'mask' and 'cached'."""
     _python()
-    model = ensure_model()
+    if quality == "fast":
+        model = ensure_model()
     ffmpeg = ff.ffmpeg()
     facts = facts or _video_facts(video)
     folder = cache_dir("cutout")
-    key = _mask_key(video, smooth)
+    key = _mask_key(video, smooth, quality)
     mask, meta = folder / f"{key}.mkv", folder / f"{key}.json"
     cached = read_json(meta, None)
     if cached and mask.exists() and mask.stat().st_size > 0:
         return {**cached, "mask": str(mask), "cached": True}
     part = folder / f"{key}.part.mkv"
     part.unlink(missing_ok=True)
-    resources.ensure_memory(0.6, "background removal")
-    frames_guess = max(1.0, facts["duration"] * facts["fps_value"])
     try:
-        data = ml.call("matte", timeout=max(900.0, frames_guess / 2.0), video=video, dest=part, model=model,
-                       ffmpeg=ffmpeg, fps=facts["fps"], smooth=smooth, max_side=MAX_SIDE, stride=STRIDE)
+        if quality == "best":
+            data = _best_matte(video, part, facts, smooth, ffmpeg)
+        else:
+            resources.ensure_memory(0.6, "background removal")
+            frames_guess = max(1.0, facts["duration"] * facts["fps_value"])
+            data = ml.call("matte", timeout=max(900.0, frames_guess / 2.0), video=video, dest=part, model=model,
+                           ffmpeg=ffmpeg, fps=facts["fps"], smooth=smooth, max_side=MAX_SIDE, stride=STRIDE)
+            from video_studio import matting
+
+            matting.record_speed("fast", int(data.get("frames") or 0), float(data.get("seconds") or 0))
         if not part.exists() or part.stat().st_size == 0:
             raise ToolError("The cut-out helper finished but wrote no mask video.",
                             "Run `video-studio doctor` and try again.")
@@ -253,12 +287,14 @@ def make_mask(video: Path, smooth: float = 0.6, facts: dict | None = None) -> di
 # ---------------------------------------------------------------- the job
 
 def run(video: Path, out: Path, background: str = "blur", *, image: Path | None = None, colour: str = "#00B140",
-        smooth: float = 0.6, keep_audio: bool = True) -> dict:
+        smooth: float = 0.6, keep_audio: bool = True, quality: str = "fast", allow_download: bool = False,
+        progress=None) -> dict:
     """Remove the background of `video` and write `out`.
 
     background: blur | colour | image | video | transparent. For 'image' and 'video', `image` is the background
     file (a still, or another clip that is looped or trimmed to length). 'transparent' writes .webm (VP9 + alpha)
-    unless `out` ends in .mov (ProRes 4444). Returns output path, seconds, engine, frames and speed."""
+    unless `out` ends in .mov (ProRes 4444). quality: fast (MediaPipe) | best (BiRefNet lite keyframes; its 214 MB
+    model is fetched only with allow_download=True). Returns output path, seconds, engine, frames and speed."""
     started = time.time()
     video, out = Path(video), Path(out)
     if background not in BACKGROUNDS:
@@ -275,9 +311,17 @@ def run(video: Path, out: Path, background: str = "blur", *, image: Path | None 
         raise ToolError(f"smooth must be from 0 to 0.95 (got {smooth}).", "0.6 suits talking heads; 0 turns it off.")
     if background == "colour":
         parse_colour(colour)  # fail before the long matte step
+    from video_studio import matting
+
+    if quality not in matting.QUALITIES:
+        raise ToolError(f"Unknown cut-out quality '{quality}'.", "Choose fast or best.")
+    downloaded = False
+    if quality == "best" and not matting.model_present():
+        matting.ensure(allow_download=allow_download, progress=progress)  # refuses without permission
+        downloaded = True
 
     facts = _video_facts(video)
-    matte = make_mask(video, float(smooth), facts)
+    matte = make_mask(video, float(smooth), facts, quality)
     final, vcodec, acodec, alpha_fmt = output_plan(background, out)
     graph = build_graph(background, facts["width"], facts["height"], facts["fps"], colour=colour,
                         alpha_format=alpha_fmt)
@@ -302,4 +346,6 @@ def run(video: Path, out: Path, background: str = "blur", *, image: Path | None 
             "fallback": matte.get("fallback", ""), "frames": frames, "fps": round(facts["fps_value"], 3),
             "speed_fps": round(frames / seconds, 2) if seconds else 0.0, "mask_cached": matte["cached"],
             "mask": matte["mask"], "width": facts["width"], "height": facts["height"],
-            "audio": bool(keep_audio and facts["has_audio"])}
+            "audio": bool(keep_audio and facts["has_audio"]), "quality": quality,
+            "keyframes": int(matte.get("keyframes") or 0), "key_seconds": float(matte.get("key_seconds") or 0.0),
+            "model_downloaded": downloaded}

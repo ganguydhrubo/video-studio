@@ -509,6 +509,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json(system_report(q.get("fresh", ["0"])[0] == "1"))
         elif url.path == "/api/machine":
             self._json(machine_report(q.get("fresh", ["0"])[0] == "1"))
+        elif url.path == "/cutout-quality.js":
+            self._file(resource_path("studio_ui", "cutout-quality.js"))
+        elif url.path == "/api/cutout/quality":
+            self._json(cutout_quality(q.get("file", [""])[0]))
         elif url.path == "/api/machine/check":
             self._json(machine_check(q.get("task", ["edit"])[0], q.get("seconds", [""])[0], q.get("short_side", [""])[0]))
         elif url.path == "/api/library":
@@ -882,6 +886,24 @@ def machine_report(fresh: bool = False) -> dict:
     return background_check("machine", lambda: machine.assess(machine.scan(fresh=fresh)), fresh=fresh)
 
 
+def cutout_quality(file: str = "") -> dict:
+    """1.9.0 best-quality cut-out: model download facts, and a time estimate for the chosen video measured on this PC."""
+    from video_studio import machine, matting
+
+    try:
+        seconds = fps = None
+        if file and Path(file).is_file():
+            from video_studio import cutout
+
+            facts = cutout._video_facts(Path(file))
+            seconds, fps = facts["duration"], facts["fps_value"]
+        data = matting.info(seconds, fps)
+        data["check"] = machine.check("cutout_best", seconds=seconds)
+        return data
+    except Exception as exc:  # noqa: BLE001 - advice only
+        return {"error": str(exc)}
+
+
 def machine_check(task: str, seconds: str = "", short_side: str = "") -> dict:
     from video_studio import machine
 
@@ -959,6 +981,10 @@ def _quick_args(mode: str, body: dict, o: dict, root: Path, name: str) -> list[s
             args += ["--colour", str(o["colour"])]
         if bg in ("image", "video") and len(files) > 1:
             args += ["--image" if bg == "image" else "--background-video", files[1]]
+        if o.get("cutout_quality") == "best":  # 1.9.0 best-quality cut-out (download only when ticked)
+            args.append("--best")
+            if o.get("allow_download"):
+                args.append("--allow-download")
         return args
     opts = _opts({k: v for k, v in o.items() if k in QUICK_OPTIONS})
     if o.get("no_music"):

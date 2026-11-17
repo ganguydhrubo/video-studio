@@ -580,6 +580,9 @@ tr:last-child td{border-bottom:0}
         <label data-modes="restyle cutout" id="qColourWrap">Background colour<input type="color" id="qColour" value="#00b140"></label>
         <div class="checkrow" data-modes="restyle"><label><input type="checkbox" id="qSteady"> Steadier camera</label><label><input type="checkbox" id="qDenoise"> Clean grainy video</label><label><input type="checkbox" id="qSharpen"> Sharpen</label><label><input type="checkbox" id="qSmooth"> Smooth slow motion (slower to make)</label></div>
         <p class="hint wide" data-modes="cutout restyle" id="qBgHint">For a picture or video background, add it after the main video.</p>
+        <label data-modes="cutout" id="qCutQualityWrap">Edge quality<select id="qCutQuality"><option value="fast">Fast (good for most videos)</option><option value="best">Best quality (much slower)</option></select></label>
+        <div class="checkrow" id="qCutDlWrap" hidden><label><input type="checkbox" id="qCutDownload"> Allow the one-time model download (214 MB, MIT licence)</label></div>
+        <p class="hint wide" id="qCutHint" hidden></p>
       </div>
     </div>
     <label class="lbl" for="brief" id="briefLbl"><i>2</i>Describe your edit</label>
@@ -1215,6 +1218,8 @@ async function create() {
       body.files = [vids[0].path, ...rest.map(f => f.path)];
       Object.assign(options, { background: $("#qBackground").value, colour: $("#qColour").value });
       if (["image", "video"].includes(options.background) && body.files.length < 2) return $("#formErr").textContent = `Add the background ${options.background === "video" ? "video" : "picture"} after the main video.`;
+      if (S.mode === "cutout") Object.assign(options, { cutout_quality: $("#qCutQuality").value, allow_download: $("#qCutDownload").checked });
+      if (options.cutout_quality === "best" && !$("#qCutDlWrap").hidden && !options.allow_download) return $("#formErr").textContent = "Tick the one-time model download for best quality, or choose Fast.";
       if (S.mode === "restyle") Object.assign(options, { speed: $("#qSpeed").value, fit: $("#qFit").value, steady: $("#qSteady").checked,
         denoise: $("#qDenoise").checked, sharpen: $("#qSharpen").checked, smooth_slow: $("#qSmooth").checked });
     }
@@ -2006,5 +2011,6 @@ setTimeout(() => { if (!S.projects.length) api("/api/projects").then(r => { S.pr
 <script src="/brief-assistant.js"></script>
 <script src="/autopilot.js"></script>
 <script src="/understand.js"></script>
+<script src="/cutout-quality.js"></script>
 </body>
 </html>
