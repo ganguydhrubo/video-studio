@@ -247,8 +247,10 @@ def which(name: str, extra_dirs: Iterable[Path] = ()) -> Path | None:
     found = shutil.which(name)
     if found:
         return Path(found)
+    # On Windows an npm folder holds both `claude` (a shell script Windows cannot start) and `claude.cmd`.
+    exts = (".exe", ".cmd", ".bat", "") if IS_WINDOWS else ("", ".exe", ".cmd", ".bat")
     for d in extra_dirs:
-        for ext in ("", ".exe", ".cmd", ".bat"):
+        for ext in exts:
             candidate = Path(d) / f"{name}{ext}"
             if candidate.is_file():
                 return candidate
