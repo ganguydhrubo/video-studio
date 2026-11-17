@@ -34,28 +34,28 @@ Everything runs on **your PC**. Your footage never leaves it unless you share it
 <tr>
 <td width="50%" valign="top">
 
-### 🎬 Edit my footage
-Drop your clips, type what you want: *"45-second Hinglish reel, remove mistakes"*. Takebloom cuts silences, fillers and retakes, opens on your strongest line, and ends on the payoff.
+### 🎬 Drop it in, it edits itself
+Drop your clips, pictures and a song together. Takebloom starts by itself: it cuts silences, fillers and retakes, opens on your strongest line, ends on the payoff, and makes the covers. Want something special? Just say it: *"45-second Hinglish reel, black and white, no captions"*.
 
 </td>
 <td width="50%" valign="top">
 
-### ✍️ Script to video
-Paste a script. Get scenes, a voice-over, music, animated text and captions, assembled and quality-checked.
+### ✨ Motion graphics and 3D, from your words
+*"3D title that spins"*, *"neon name tag with my name"*, *"confetti at the end"*. Real 3D letters, kinetic text, end cards and sparkles are placed where they never cover your big moments. All offline.
 
 </td>
 </tr>
 <tr>
 <td valign="top">
 
-### 🖼️ Photos to video
-A folder of pictures becomes a moving story with titles, music and transitions, using one of 24 ready templates.
+### 🖼️ Pictures, music and fixes
+Add pictures to any edit, or make a film from pictures alone with one of 24 templates. After the edit, fix anything on a simple timeline: trim, reorder, re-caption, music level.
 
 </td>
 <td valign="top">
 
 ### ✂️ Cut-out, restyle and slow motion
-Replace or blur the background without a green screen. Change the shape, the colour look, the speed and the stability of any clip.
+Replace or blur the background without a green screen, with an optional Best quality mode for hair and clothes. Change the shape, the colour look, the speed and the stability of any clip.
 
 </td>
 </tr>
@@ -81,8 +81,7 @@ Before you start, it checks this computer and tells you honestly what it can mak
 
 <table>
 <tr>
-<td width="62%"><img src="docs/images/create.png" alt="The Create page with four ways to start: edit footage, script, photos and quick tools"></td>
-<td width="38%" align="center"><img src="docs/images/script-demo.gif" width="240" alt="A 9-second clip of a video Takebloom made from a script: animated words with highlighted captions"><br><sub>Made from a 6-line script in 18 seconds.<br>Voice, music, captions and QA all automatic.</sub></td>
+<td width="100%"><img src="docs/images/create.png" alt="The Create page: drop clips, pictures and a song, describe the edit, and see what Takebloom will do before it starts by itself"></td>
 </tr>
 </table>
 
@@ -137,7 +136,9 @@ flowchart LR
 - **No talking** (travel, product, cars, events): a beat-synced montage of the best moments, on your own music if the clip has it.
 - **Builds a story**: cuts the self-intro, sign-off and repeats, opens cold on the strongest self-contained claim, keeps concrete examples (names, numbers) and ends on the payoff. Works in any spoken language: each line is translated to English on this PC to judge its meaning.
 - **Paces it**: holds a beat after strong lines and questions, runs weak lines tight.
-- **B-roll** from your own clips, matched to what each line means.
+- **B-roll** from your own clips, matched to what each line means. Optional free stock clips from Pexels or Pixabay with your own free key (only a few search words leave your PC, and every clip is credited).
+- **Smooth joins**: J-cuts and L-cuts at changes of clip, so the sound leads or trails the picture a little. Your voice stays exactly in sync.
+- **Motion graphics and 3D** from your prompt: 3D titles, name tags, kinetic text, end cards, confetti and sparkles, rendered on your PC with HyperFrames and three.js.
 - **Reframes** to 9:16, 16:9, 1:1 or 4:5 with face tracking and punch-in zooms.
 - **Cleans** the voice and corrects the colour. It never replaces your background and never over-brightens a face.
 - **Captions** with the spoken word highlighted, in native or Roman script, kept off your face and clear of the Reels/Shorts buttons.
@@ -145,7 +146,7 @@ flowchart LR
 - **Your words**: `video-studio vocab add Sahkarmi Dhrubo` and names are always spelled right.
 - **One long video to many shorts**, each with a plain-English reason.
 - **Learns any style you show it**: give it reels you love; it measures their rhythm, beat sync, punch-ins and colour, and edits that way. Only numbers are kept.
-- **Learns your taste** from your 1 to 5 star ratings. You can see and delete everything it remembers. No AI model is trained.
+- **Learns from every edit**: what you ask for, refine, keep, cut, download, share and rate. Next time, when your prompt says nothing about pace, captions, music or colour, it uses what you usually choose and tells you why, with real counts. What you write always wins. One button forgets it all. No AI model is trained, and nothing leaves your PC.
 - **Every export** comes with a ready post, a cover and a Premiere/Resolve timeline.
 
 </details>
@@ -165,11 +166,12 @@ Takebloom is not trying to replace a professional timeline editor or a cloud vid
 | Free, no watermark, no account | ✅ | Partly | Resolve / HitFilm free, others paid | ❌ | ❌ credits |
 | Tells you what your PC can make | ✅ | ❌ | ❌ | ❌ | n/a |
 | Captions, post text and covers in one go | ✅ | Partly | ❌ | Partly | ❌ |
-| Frame-by-frame manual timeline | Basic (keep/cut lines) | ✅ | ✅✅ | ✅ | ❌ |
-| Motion graphics and VFX depth | Templates + HyperFrames | ✅ | ✅✅ (After Effects) | ❌ | n/a |
+| Learns from every edit you make | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Manual timeline | Simple (trim, reorder, captions, pictures, music level) | ✅ | ✅✅ | ✅ | ❌ |
+| Motion graphics and VFX depth | 3D titles, name tags, kinetic text, confetti (HyperFrames + three.js) | ✅ | ✅✅ (After Effects) | ❌ | n/a |
 | Effects and template library size | 24 templates · 16 looks · 57 transitions | ✅✅ thousands | ✅✅ | Small | n/a |
-| Generates realistic new footage from text | Only on a big NVIDIA card | Partly | ❌ | ❌ | ✅✅ |
-| Cut-out quality on hair and fast motion | Good | Very good | Very good | Good | n/a |
+| Generates new footage from text | ❌ by design: it edits the footage you shot | Partly | ❌ | ❌ | ✅✅ |
+| Cut-out quality on hair and fast motion | Good; Best quality option (slow) | Very good | Very good | Good | n/a |
 
 Takebloom uses **Blender** itself for 3D scenes, so that one is a partner, not a rival. If you need pixel-level manual control, finish in Resolve or Premiere: Takebloom exports an `.otio` timeline for exactly that.
 
@@ -178,14 +180,13 @@ Takebloom uses **Blender** itself for 3D scenes, so that one is a partner, not a
 ## Install
 
 1. **[Download Takebloom-Setup.exe](https://github.com/ganguydhrubo/video-studio/releases/latest/download/Takebloom-Setup.exe)** and run it. It installs for your user only and adds **Takebloom** to the Desktop and Start menu.
-2. Open Takebloom and go to **System**. It scans your PC, explains what it can and cannot make, and installs the free tools it needs after one confirmation (about 1.5 GB, all free and open source):
-   - **Required:** FFmpeg.
-   - **Recommended:** Blender for 3D, speech-to-text, voice cleaning and face tracking, and natural Kokoro voices.
-   - **Optional:** HyperFrames motion graphics, and an AI brain. The default is **OpenCode's free models** (no account). Ollama runs free and offline. Gemini and Qwen are free with an account. Claude and Codex need a paid plan. Takebloom never sees your password.
+2. Open Takebloom and go to **System**. It scans your PC, explains what it can and cannot make, and sets up everything the editor needs in one click, even on a PC with no Python, FFmpeg or Node (about 1.3 GB, all free; each download shows its size and licence first and is checked before use; no admin rights needed):
+   - **Set up by default:** FFmpeg, a private Python with speech-to-text, voice cleaning and face tracking, Node.js and HyperFrames for motion graphics and 3D titles.
+   - **Optional:** Blender, the bigger speech model, the Best quality cut-out model, and an AI brain. The default is **OpenCode's free models** (no account). Ollama runs free and offline. Gemini and Qwen are free with an account. Claude and Codex need a paid plan. Takebloom never sees your password.
 
 Every install shows the plan and the licence first, and asks before it runs.
 
-> **Portable version:** `Takebloom-1.8.1-portable.zip`. Extract the whole zip, keep `_internal` beside the `.exe` files, and open `VideoStudio.exe`.
+> **Portable version:** `Takebloom-1.9.0-portable.zip`. Extract the whole zip, keep `_internal` beside the `.exe` files, and open `VideoStudio.exe`.
 >
 > **Checksums** for every file are on the [release page](https://github.com/ganguydhrubo/video-studio/releases/latest).
 >
@@ -201,11 +202,12 @@ video-studio edit clip1.mp4 clip2.mov "60s reel, remove mistakes, bold captions"
 video-studio edit talk.mov "Hinglish reel" --caption-script roman --target 45 --platform reels shorts
 video-studio edit trip.mp4 "Goa trip, 20 seconds" --like travel-cinematic     # no talking: beat montage
 video-studio shorts podcast.mp4 "viral Hinglish reel" --count 5 --min 20 --max 58
-video-studio make script.txt --instructions "warm explainer, 3D hook" --aspect 9:16
 video-studio photos "C:\Pictures\Goa" --template travel --titles "Day one|The beach|Home"
 video-studio restyle clip.mp4 --aspect 9:16 --grade teal_orange --speed 0.5 --smooth-slow --steady
 video-studio cutout talk.mp4 --background colour --colour "#1d2b2a"    # or blur | image | video | transparent
-video-studio generate "drone shot over tea gardens at sunrise"        # only on a PC with a large NVIDIA card
+video-studio cutout talk.mp4 --best                   # best-quality edges (one-time 214 MB download)
+video-studio timeline export|render --project "C:\Videos\Video Studio\my-reel"   # fix the edit, make it again
+video-studio config set stock.pexels_key <your free key>   # optional free stock B-roll
 video-studio learn-style "C:\Videos\reels I love" --name travel-cinematic
 video-studio machine                                  # what THIS PC can make
 video-studio library                                  # templates, colour looks, transitions
@@ -214,8 +216,6 @@ video-studio update check | download | install | rollback | auto-on | auto-off
 video-studio ai status | ai login claude | ai use opencode | ai test
 video-studio setup [--report]  ·  video-studio doctor
 ```
-
-**Script format:** plain paragraphs, one scene each, with optional tags: `# Title`, `[3D: rocket]`, `[STAT: 70% | label]`, `[QUOTE: text - Author]`, bullet lists, `[IMAGE: path]`, `[CHART: ...]`, `[CTA: ...]` and `[HYPERFRAMES]`.
 
 <details>
 <summary><b>What you get in each project folder</b></summary>
@@ -226,6 +226,8 @@ video-studio setup [--report]  ·  video-studio doctor
 | `exports/` | Platform cuts, covers, thumbnail, SRT/VTT captions, the ready post, and an `.otio` timeline for Resolve or Kdenlive |
 | `output/qa/qa_report.md`, `contact_sheet.jpg` | Automatic quality report |
 | `storyboard.md` / `edit_plan.md`, `transcript.txt` | The plan, in plain words |
+| `timeline/index.html` | The edit as a HyperFrames file, used by the timeline |
+| `exports/credits.txt` | Credits for any free stock clips used |
 | `project.json`, `build/` | Project file and cached steps (`video-studio clean` frees space) |
 
 </details>
@@ -239,8 +241,9 @@ The app and its server run on `127.0.0.1`, which is **your own computer**. Nothi
 ## Honest limits
 
 - Takebloom does **not post to social media by itself**. Each site needs its own approval and your sign-in for that, so it opens the upload page with your caption ready.
-- Script-to-video makes **animated text scenes** (kinetic words, stats, quotes, calls to action) on a moving background. Real pictures appear only when you add `[IMAGE: path]`; 3D needs Blender.
-- Generating new realistic footage from text needs a large NVIDIA graphics card. On other PCs Takebloom says so up front.
+- Takebloom **edits footage you shot**. It does not generate new footage from text or pictures; that was removed on purpose so the editor can be the best at one job, free.
+- 3D letters work for English letters; a Hindi or Bengali title becomes a flat animated title. Motion graphics need HyperFrames (set up by default).
+- The timeline is simple: no split, no adding new clips there. The Best quality cut-out is slow (minutes for a few seconds) and needs about 6 GB of free memory.
 
 The full list, with fixes, is in [Known limitations](docs/KNOWN_LIMITATIONS.md).
 
