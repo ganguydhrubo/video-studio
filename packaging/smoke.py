@@ -42,6 +42,8 @@ def main():
                 assert b'/api/learned' in response.read()
             with opener.open('http://127.0.0.1:7894/api/learned') as response:
                 assert json.load(response)['events']==0
+            with opener.open('http://127.0.0.1:7894/timeline.js') as response:
+                assert b'/api/timeline/render' in response.read() and '/timeline.js' in html
             with opener.open('http://127.0.0.1:7894/api/library') as response:
                 lib=json.load(response)
             assert lib['counts']['templates']>=20 and lib['counts']['looks']>=15 and lib['counts']['transitions']>=50

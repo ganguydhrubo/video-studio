@@ -837,6 +837,11 @@ def _broll_pass(proj: Project, m: dict, p: dict, video: Path, splan: dict, w: in
     from video_studio import broll, story
 
     opts = proj.data["edit_options"]
+    if "broll" in (m.get("timeline") or {}):  # timeline: the cutaways the person kept, where they put them
+        cuts = [c for c in m["timeline"]["broll"] if Path(c["path"]).is_file()]
+        m["broll"] = cuts
+        proj.write("edit_manifest.json", m)
+        return broll.apply(video, cuts, w, h, m["fps"], proj.build / "with_broll.mp4", proj.settings["quality"]) if cuts else video
     if p.get("mode") == "montage" or not broll.library_dirs(opts.get("broll")):
         return video
     index = broll.build_index(opts.get("broll"))
@@ -1065,7 +1070,7 @@ def cut(proj: Project) -> dict:
     speed.run_all(encode_piece, encodes, speed.piece_workers(), lambda n: console.progress("cutting", n, len(encodes)))
     for pc, dest, punch in made:
         out_pieces.append({"file": str(dest), "src_start": pc["start"], "src_end": pc["end"], "out_start": round(t_out, 3),
-                           "utt": pc["utt"], "punch": punch,
+                           "utt": pc["utt"], "punch": punch, "vf": vf,  # vf: the timeline can re-cut a longer range
                            "words": [{"text": wd["text"], "start": round(t_out + wd["start"] - pc["start"], 3),
                                       "end": round(t_out + wd["end"] - pc["start"], 3)} for wd in pc["words"]]})
         t_out += ff.duration(dest)
@@ -1106,7 +1111,8 @@ def render(proj: Project) -> Path:
     brief_low = proj.data.get("brief", "").lower()
     if script == "auto" and lang in ("hi", "ur") and not any(k in brief_low for k in ("devanagari", "hindi captions", "hindi script")):
         script = "roman"  # Hinglish creators write captions in Latin letters
-    if words and script == "roman" and any(ord(c) > 0x2FF for wd in words for c in wd["text"]):
+    tl = m.get("timeline") or {}   # timeline.py: the person's own captions, pictures, B-roll and music level win
+    if tl.get("words") is None and words and script == "roman" and any(ord(c) > 0x2FF for wd in words for c in wd["text"]):
         if proj.data["edit_options"].get("use_ai"):
             words = _romanize(proj, words)
         else:
@@ -1115,7 +1121,8 @@ def render(proj: Project) -> Path:
             words = brain.romanize_words(words)
     from video_studio import vocab
 
-    words = vocab.correct(words)
+    words = [dict(x) for x in tl["words"]] if tl.get("words") is not None else vocab.correct(words)
+    m["caption_words"] = [{"text": x["text"], "start": x["start"], "end": x["end"]} for x in words]
     word_info = _word_info(proj, m["pieces"])
     fx = _fx(proj)
     cut_video = Path(m["cut"])
@@ -1192,8 +1199,12 @@ def render(proj: Project) -> Path:
     voice = audio_dir / "voice_cut.wav"
     ff.ff(["-i", m["cut"], "-vn", "-c:a", "pcm_s16le", "-ar", "48000", str(voice)])
     music_path = None
-    if s.get("music_enabled", True):
-        if p.get("own_music"):
+    tl_music = tl.get("music") or {}
+    if s.get("music_enabled", True) and tl_music.get("on", True):
+        if tl_music.get("reuse") and Path(tl_music["reuse"]).is_file():  # timeline: keep the same library track
+            music_path = Path(tl_music["reuse"])
+            console.info(f"Music: the same track as before ({(m.get('music') or {}).get('file', music_path.name)})")
+        elif p.get("own_music"):
             music_path = audio_dir / "own_music.wav"
             if not music_path.exists():
                 ff.ff(["-i", m["source"], "-vn", "-ac", "2", "-ar", "48000", "-t", f"{total + 0.3:.3f}", "-c:a", "pcm_s16le", str(music_path)])
@@ -1229,9 +1240,11 @@ def render(proj: Project) -> Path:
     if p.get("mode") == "montage":
         amb = audio_dir / "ambient.wav"
         ff.ff(["-i", str(voice), "-af", "volume=0.0" if p.get("own_music") else "volume=0.25", str(amb)])
-        compose.mix_audio([(amb, 0.0)], music_path, fx, total, final_audio, float(s["loudness"]), music_gain=1.0, duck=False)
+        compose.mix_audio([(amb, 0.0)], music_path, fx, total, final_audio, float(s["loudness"]),
+                          music_gain=float(tl_music.get("volume", 1.0)), duck=False)
     else:
-        compose.mix_audio([(voice, 0.0)], music_path, fx, total, final_audio, float(s["loudness"]), music_gain=0.14)
+        compose.mix_audio([(voice, 0.0)], music_path, fx, total, final_audio, float(s["loudness"]),
+                          music_gain=float(tl_music.get("volume", 0.14)))
     compose.mux(video_only, final_audio, proj.master)
     proj.mark("render", "done", file=str(proj.master))
     console.ok(f"Rendered {proj.master} ({fmt_seconds(total)})")

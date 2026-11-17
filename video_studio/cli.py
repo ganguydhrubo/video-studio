@@ -981,6 +981,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--from", dest="from_stage", help="redo from this stage (e.g. plan, cut, produce, render)")
     s.set_defaults(func=cmd_resume)
 
+    s = sub.add_parser("timeline", help="the finished edit as a HyperFrames composition: export it, or make the film again from it")
+    s.add_argument("action", choices=["export", "render"])
+    s.set_defaults(func=lambda a: __import__("video_studio.timeline", fromlist=["run_cli"]).run_cli(a))
+
     s = sub.add_parser("status", help="show project stages and outputs")
     s.set_defaults(func=cmd_status)
 

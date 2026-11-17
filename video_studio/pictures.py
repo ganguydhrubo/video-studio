@@ -68,16 +68,23 @@ def apply_pass(proj, m: dict, video: Path, splan: dict, w: int, h: int, total: f
     """Lay the person's pictures over the edit. Returns the new picture track video (or the same one when none)."""
     from video_studio import broll
 
-    pics = [Path(x) for x in proj.data.get("edit_options", {}).get("pictures") or []]
-    pics = [p for p in pics if p.is_file() and p.suffix.lower() in IMAGE_TYPES]
-    if not pics:
-        return video
-    busy = [(s["t0"] - 0.2, s["t1"] + 0.2) for s in (splan or {}).get("slams", []) if "t0" in s]
-    busy += [(c["t0"] - 0.3, c["t1"] + 0.3) for c in m.get("broll") or []]
-    places = slots(len(pics), total, busy)
-    if len(places) < len(pics):
-        console.warn(f"Your pictures: the film is {total:.0f} s long, so {len(places)} of {len(pics)} pictures fit. "
-                     "Ask for a longer video to show them all.")
+    if "pictures" in (m.get("timeline") or {}):  # timeline.py: the pictures the person kept, where they put them
+        kept = [x for x in m["timeline"]["pictures"] if Path(x["path"]).is_file() and x["t1"] - x["t0"] >= 0.3]
+        pics, places = [Path(x["path"]) for x in kept], [(x["t0"], x["t1"]) for x in kept]
+        moves = [x.get("move") if x.get("move") in MOVES else MOVES[i % len(MOVES)] for i, x in enumerate(kept)]
+        m["pictures"] = []
+    else:
+        pics = [Path(x) for x in proj.data.get("edit_options", {}).get("pictures") or []]
+        pics = [p for p in pics if p.is_file() and p.suffix.lower() in IMAGE_TYPES]
+        if not pics:
+            return video
+        busy = [(s["t0"] - 0.2, s["t1"] + 0.2) for s in (splan or {}).get("slams", []) if "t0" in s]
+        busy += [(c["t0"] - 0.3, c["t1"] + 0.3) for c in m.get("broll") or []]
+        places = slots(len(pics), total, busy)
+        moves = [MOVES[i % len(MOVES)] for i in range(len(places))]
+        if len(places) < len(pics):
+            console.warn(f"Your pictures: the film is {total:.0f} s long, so {len(places)} of {len(pics)} pictures fit. "
+                         "Ask for a longer video to show them all.")
     if not places:
         return video
     folder = proj.build / "pictures"
@@ -86,9 +93,10 @@ def apply_pass(proj, m: dict, video: Path, splan: dict, w: int, h: int, total: f
     for i, ((t0, t1), pic) in enumerate(zip(places, pics)):
         console.step(f"Adding your pictures: {i + 1} of {len(places)} ({pic.name})")
         clip = folder / f"pic_{i:02d}_{w}x{h}.mp4"
-        render_still(pic, clip, w, h, m["fps"], t1 - t0 + 0.15, MOVES[i % len(MOVES)])
+        render_still(pic, clip, w, h, m["fps"], t1 - t0 + 0.15, moves[i])
         cuts.append({"t0": t0, "t1": t1, "path": str(clip), "src": 0.0, "why": f"your picture {pic.name}", "picture": True})
-    m["pictures"] = [{"t0": c["t0"], "t1": c["t1"], "name": Path(p).name} for c, p in zip(cuts, pics)]
+    m["pictures"] = [{"t0": c["t0"], "t1": c["t1"], "name": Path(p).name, "path": str(p), "move": mv}
+                     for c, p, mv in zip(cuts, pics, moves)]
     proj.write("edit_manifest.json", m)
     console.ok(f"Your pictures: {len(cuts)} placed across the film")
     return broll.apply(video, cuts, w, h, m["fps"], proj.build / "with_pictures.mp4", proj.settings["quality"])
