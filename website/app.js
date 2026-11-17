@@ -1,7 +1,7 @@
 'use strict';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const reduced=matchMedia('(prefers-reduced-motion: reduce)');
-let paused=reduced.matches,position=0,last=0,frame=0,selected=-1,sound=true,userMuted=false,audioUnlocked=false;
+let paused=reduced.matches,position=0,last=0,frame=0,selected=-1,sound=true,userMuted=false,audioUnlocked=false,vol=0.85;
 const canvas=$('#film'),ctx=canvas.getContext('2d');
 const scenes=[{name:'01 / HOWRAH GHATS',title:'Go somewhere<br><em>unexpected.</em>'},{name:'02 / TEA HILLS',title:'Find your<br><em>own rhythm.</em>'},{name:'03 / HOME DESK',title:'Make the<br><em>moment last.</em>'}];
 const imgs=['scene-1.jpg','scene-2.jpg','scene-3.jpg'].map(src=>{const im=new Image();im.onload=()=>draw();im.src=src;return im});
@@ -44,7 +44,7 @@ function landscape(c,w,h,scene,t){
  const vignette=c.createRadialGradient(500,240,100,500,300,640);vignette.addColorStop(0,'#102a2000');vignette.addColorStop(1,'#102a205c');c.fillStyle=vignette;c.fillRect(0,0,1000,600);c.restore();
 }
 function resize(){const box=canvas.getBoundingClientRect();const scale=Math.min(devicePixelRatio||1,1.5);canvas.width=Math.round(box.width*scale);canvas.height=Math.round(box.height*scale);draw()}
-function syncAudio(){const on=sound&&!userMuted&&!paused&&!document.hidden;vids.forEach((v,i)=>{const active=i===selected&&on;v.muted=!active;if(active&&v.paused)v.play().catch(()=>{v.muted=true;audioUnlocked=false;v.play().catch(()=>{})})});$('#sound').textContent=on&&audioUnlocked?'♫ Sound on':'♫ Tap for sound';$('#sound').setAttribute('aria-pressed',String(on&&audioUnlocked))}
+function syncAudio(){const on=sound&&!userMuted&&vol>0&&!paused&&!document.hidden;vids.forEach((v,i)=>{v.volume=vol;const active=i===selected&&on;v.muted=!active;if(active&&v.paused)v.play().catch(()=>{v.muted=true;audioUnlocked=false;v.play().catch(()=>{})})});const live=on&&audioUnlocked;$('#sound').textContent=live?`♫ Sound ${Math.round(vol*100)}%`:'♫ Sound off';$('#sound').setAttribute('aria-pressed',String(live));const vb=$('#vol-btn'),vs=$('#volume');if(vb)vb.textContent=!live||vol===0?'🔇':vol<.45?'🔉':'🔊';if(vs&&document.activeElement!==vs)vs.value=userMuted?0:vol}
 function unlockAudio(){audioUnlocked=true;if(!userMuted)sound=true;syncAudio()}
 ['pointerdown','click','touchstart','keydown'].forEach(ev=>window.addEventListener(ev,unlockAudio,{once:true,passive:true}));
 function draw(seekVid=false){let scene=Math.min(2,Math.floor(position/8));if(scene!==selected){selected=scene;vids.forEach((v,i)=>{if(i===scene){try{v.currentTime=position%8}catch{}if(!paused)v.play().catch(()=>{})}else v.pause()});syncAudio();$('#scene-name').textContent=scenes[scene].name;$('#film-word').innerHTML=scenes[scene].title;$$('.clip').forEach((e,i)=>e.classList.toggle('active',i===scene))}else if(seekVid&&vids[scene]&&vids[scene].readyState>=2){try{vids[scene].currentTime=position%8}catch{}}landscape(ctx,canvas.width,canvas.height,scene,position);$('#scrub').value=position;$('#playhead').style.left=`${position/24*100}%`;$('#timecode').textContent=`00:${String(Math.floor(position)).padStart(2,'0')} / 00:24`}
@@ -55,7 +55,10 @@ $('#scrub').addEventListener('input',e=>{unlockAudio();position=Number(e.target.
 $$('[data-scene]').forEach(b=>b.addEventListener('click',()=>{unlockAudio();position=Number(b.dataset.scene)*8;draw(true)}));
 $$('[data-look]').forEach(b=>b.addEventListener('click',()=>{$('#preview').classList.remove('golden','noir');if(b.dataset.look!=='natural')$('#preview').classList.add(b.dataset.look);$$('[data-look]').forEach(x=>{x.classList.toggle('active',x===b);x.setAttribute('aria-pressed',String(x===b))})}));
 $$('[data-format]').forEach(b=>b.addEventListener('click',()=>{$('#preview').classList.toggle('portrait',b.dataset.format==='portrait');$('#frame-format').textContent=b.dataset.format==='portrait'?'9:16 · PORTRAIT CROP':'16:9 · CINEMATIC';$$('[data-format]').forEach(x=>{x.classList.toggle('active',x===b);x.setAttribute('aria-pressed',String(x===b))})}));
-$('#sound').addEventListener('click',()=>{audioUnlocked=true;if(sound&&!userMuted){userMuted=true;sound=false}else{userMuted=false;sound=true;if(paused){paused=false;state()}}syncAudio()});
+function toggleMute(){audioUnlocked=true;if(sound&&!userMuted&&vol>0){userMuted=true;sound=false}else{userMuted=false;sound=true;if(vol===0)vol=0.85;if(paused){paused=false;state()}}syncAudio()}
+$('#sound').addEventListener('click',toggleMute);
+if($('#vol-btn'))$('#vol-btn').addEventListener('click',toggleMute);
+if($('#volume'))$('#volume').addEventListener('input',e=>{audioUnlocked=true;vol=Number(e.target.value);userMuted=vol===0;sound=vol>0;syncAudio()});
 for(let i=0;i<180;i++){const bar=document.createElement('i');bar.style.height=`${4+Math.abs(Math.sin(i*1.4)*Math.cos(i*.3))*17}px`;$('#waveform').append(bar)}
 let visible=true;new IntersectionObserver(entries=>{visible=entries[0].isIntersecting;last=0},{rootMargin:'80px'}).observe($('#studio'));
 function tick(now){requestAnimationFrame(tick);if(document.hidden||!visible||paused){last=0;return}if(now-frame<1000/24)return;frame=now;if(last)position=(position+Math.min((now-last)/1000,.1))%24;last=now;draw()}
