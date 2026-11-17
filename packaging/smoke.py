@@ -34,7 +34,7 @@ def main():
             assert 'AI_ICONS=' in html and 'id="quest"' in html and '/brief-assistant.js' in html and '__TOKEN__' not in html
             with opener.open('http://127.0.0.1:7894/brief-assistant.js') as response:
                 assert b'/api/brief/interpret' in response.read()
-            assert 'id="mPhotos"' in html and 'id="machineCard"' in html and 'id="updateCard"' in html
+            assert 'id="mPhotos"' not in html and 'id="machineCard"' in html and 'id="updateCard"' in html
             assert '/autopilot.js' in html and '/understand.js' in html and 'id="mGenerate"' not in html
             assert 'function wireShare' in html and 'id="tDownload"' in html and 'function fixPreview' in html
             assert '/learned.js' in html
