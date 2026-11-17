@@ -25,6 +25,7 @@ import html
 import json
 import os
 import re
+import shutil
 import threading
 import time
 from html.parser import HTMLParser
@@ -220,11 +221,41 @@ def layout(model: dict) -> dict:
 
 # ------------------------------------------------------------------------------------------------------------- write
 
-def _rel(folder: Path, target: str) -> str:
-    try:
-        return Path(os.path.relpath(target, folder)).as_posix()
-    except ValueError:   # another drive
-        return Path(target).as_posix()
+class _Media:
+    """HyperFrames reads media only from inside the composition's folder, so each file the edit uses is hard-linked
+    into timeline/media (no extra disk space; a copy only for a small file on another drive)."""
+
+    def __init__(self, folder: Path) -> None:
+        self.dir, self.used = folder / "media", set()
+        self.dir.mkdir(parents=True, exist_ok=True)
+
+    def add(self, target: str, name: str) -> str:
+        src, dest = Path(target), self.dir / name
+        self.used.add(name)
+        try:
+            if dest.exists() and os.path.samefile(src, dest):
+                return "media/" + name
+        except OSError:
+            pass
+        try:
+            dest.unlink(missing_ok=True)
+            os.link(src, dest)
+        except OSError:
+            try:
+                if src.stat().st_size > 300 * 1024 * 1024:
+                    raise OSError("too big to copy")
+                shutil.copy2(src, dest)
+            except OSError:
+                return src.as_posix()   # still the right file; HyperFrames tools may not reach it
+        return "media/" + name
+
+    def prune(self) -> None:
+        for f in self.dir.iterdir():
+            if f.name not in self.used:
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
 
 
 def _f(v: float) -> str:
@@ -243,22 +274,23 @@ def write(proj: Project, model: dict) -> Path:
     folder = path.parent
     folder.mkdir(parents=True, exist_ok=True)
     w, h, total = model["width"], model["height"], max(0.04, model["total"])
+    media = _Media(folder)
     rows = []
     for c in model["cuts"]:
         inside = c["piece_in"] - 0.002 <= c["in"] and c["out"] <= c["piece_out"] + 0.002
         src, offset = (c["piece"], c["piece_in"]) if inside else (model["source"], 0.0)
         look = None if inside else "object-position:%.1f%% 50%%" % (c["focus"] * 100)
         rows.append("  <video %s playsinline></video>" % _a(
-            id=c["id"], src=_rel(folder, src), data_start=_f(c["start"]), data_duration=_f(c["len"]),
+            id=c["id"], src=media.add(src, Path(src).name if inside else "source" + Path(src).suffix), data_start=_f(c["start"]), data_duration=_f(c["len"]),
             data_media_start=_f(max(0.0, c["in"] - offset)), data_track_index=TRACK["cut"], data_has_audio="true",
             data_tb_kind="cut", data_tb_src_offset=_f(offset), data_tb_utt=c.get("utt") or None, style=look))
     for b in model["broll"]:
         rows.append("  <video %s muted playsinline></video>" % _a(
-            id=b["id"], src=_rel(folder, b["path"]), data_start=_f(b["t0"]), data_duration=_f(b["t1"] - b["t0"]),
+            id=b["id"], src=media.add(b["path"], "broll-%s%s" % (b["id"], Path(b["path"]).suffix)), data_start=_f(b["t0"]), data_duration=_f(b["t1"] - b["t0"]),
             data_media_start=_f(b["src"]), data_track_index=TRACK["broll"], data_tb_kind="broll", data_tb_why=b["why"] or None))
     for pic in model["pictures"]:
         rows.append("  <img %s>" % _a(
-            id=pic["id"], cls="clip", src=_rel(folder, pic["path"]), alt=pic["name"], data_start=_f(pic["t0"]),
+            id=pic["id"], cls="clip", src=media.add(pic["path"], "picture-%s%s" % (pic["id"], Path(pic["path"]).suffix.lower())), alt=pic["name"], data_start=_f(pic["t0"]),
             data_duration=_f(pic["t1"] - pic["t0"]), data_track_index=TRACK["picture"], data_tb_kind="picture",
             data_tb_move=pic["move"]))
     for o in model["overlays"]:
@@ -277,7 +309,7 @@ def write(proj: Project, model: dict) -> Path:
     mus = model.get("music")
     if mus and mus.get("src"):
         rows.append("  <audio %s></audio>" % _a(
-            id="music", src=_rel(folder, mus["src"]), data_start="0", data_duration=_f(total), data_volume=_f(mus["volume"]),
+            id="music", src=media.add(mus["src"], "music" + Path(mus["src"]).suffix.lower()), data_start="0", data_duration=_f(total), data_volume=_f(mus["volume"]),
             data_track_index=TRACK["music"], data_hidden=None if mus["on"] else "true", data_tb_kind="music",
             data_tb_default=_f(mus["default"]), data_tb_source=mus["source"], data_tb_name=mus["name"]))
     elif mus:
@@ -304,7 +336,7 @@ def write(proj: Project, model: dict) -> Path:
 </style>
 </head>
 <body>
-<div {_a(id="root", data_composition_id=COMP_ID, data_width=w, data_height=h, data_duration=_f(total), data_fps=model["fps"], data_tb_version=VERSION, data_tb_base=model["base"])}>
+<div {_a(id="root", data_composition_id=COMP_ID, data_no_timeline="", data_width=w, data_height=h, data_duration=_f(total), data_fps=model["fps"], data_tb_version=VERSION, data_tb_base=model["base"])}>
 {chr(10).join(rows)}
 </div>
 </body>
@@ -313,6 +345,7 @@ def write(proj: Project, model: dict) -> Path:
     tmp = path.with_suffix(".tmp")
     tmp.write_text(doc, encoding="utf-8")
     os.replace(tmp, path)
+    media.prune()
     return path
 
 

@@ -109,7 +109,11 @@ class Model(unittest.TestCase):
         for attr in ("data-media-start", "data-track-index", "data-has-audio", "data-volume"):
             self.assertIn(attr, html)
         self.assertNotIn("crossorigin", html)
-        self.assertIn('src="../build/pieces/p0000.mov"', html)
+        self.assertIn('src="media/p0000.mov"', html)
+        self.assertNotIn('src="../', html)                 # HyperFrames reads media only inside its folder
+        linked = timeline.comp_path(self.proj).parent / "media" / "p0000.mov"
+        self.assertTrue(os.path.samefile(linked, self.proj.build / "pieces" / "p0000.mov"))   # a hard link, no copy
+        self.assertIn("data-no-timeline", html)
         back = timeline.normalize(self.proj, timeline.parse(self.proj))
         self.assertEqual([(c["in"], c["out"]) for c in back["cuts"]], [(c["in"], c["out"]) for c in m["cuts"]])
         self.assertEqual([(c["text"], c["start"]) for c in back["captions"]], [(c["text"], c["start"]) for c in m["captions"]])
@@ -122,6 +126,7 @@ class Model(unittest.TestCase):
         m["cuts"][1]["in"] = 3.55                          # trim the start of "Fresh leaves every"
         out = timeline.save(self.proj, m)
         self.assertEqual([c["id"] for c in out["cuts"]], ["c3", "c2"])
+        self.assertFalse((timeline.comp_path(self.proj).parent / "media" / "p0000.mov").exists())   # unused links go
         self.assertAlmostEqual(out["total"], 1.2 + 0.95, places=3)
         come2 = next(c for c in out["captions"] if c["text"].startswith("Come"))
         self.assertAlmostEqual(come2["start"], come["start"] - 3.0, places=3)   # moved to the front with its piece
@@ -191,8 +196,8 @@ class Model(unittest.TestCase):
         path = timeline.comp_path(self.proj)
         html = path.read_text(encoding="utf-8")
         # trim the first piece to 1 s by editing the standard attributes, and set the music level
-        html = html.replace('id="c1" src="../build/pieces/p0000.mov" data-start="0.000" data-duration="1.500" data-media-start="0.000"',
-                            'id="c1" src="../build/pieces/p0000.mov" data-start="0.000" data-duration="1.000" data-media-start="0.250"')
+        html = html.replace('id="c1" src="media/p0000.mov" data-start="0.000" data-duration="1.500" data-media-start="0.000"',
+                            'id="c1" src="media/p0000.mov" data-start="0.000" data-duration="1.000" data-media-start="0.250"')
         html = html.replace('data-volume="0.140"', 'data-volume="0.070"')
         path.write_text(html, encoding="utf-8")
         out = timeline.load(self.proj)
