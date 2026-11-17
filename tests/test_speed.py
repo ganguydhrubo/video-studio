@@ -388,3 +388,29 @@ class ParallelSense(unittest.TestCase):
             self.assertEqual(len(out[0]["timeline"]), 126)
             self.assertEqual(out[0], out[1])
             self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), ["clip.mp4", "sense1.json", "sense2.json"])
+
+
+class BackgroundProsody(unittest.TestCase):
+    def test_prosody_runs_early_and_is_used_only_for_the_same_words(self):
+        from video_studio import speed
+        from video_studio.engines import ff, ml
+
+        words = [{"text": "hi", "start": 0.1, "end": 0.4}, {"text": "there", "start": 0.5, "end": 0.9}]
+        with tempfile.TemporaryDirectory() as tmp:
+            build = Path(tmp)
+            calls = []
+
+            def fake_call(cmd, **kw):
+                calls.append(cmd)
+                return {"ok": True, "words": [{"db": 1.0}, {"db": 2.0}]}
+
+            with patch.object(ml, "call", fake_call), patch.object(ff, "ff", lambda args, **kw: Path(args[-1]).write_bytes(b"RIFF")):
+                self.assertTrue(speed.start_prosody(build, build / "source.mov", words))
+                self.assertFalse(speed.start_prosody(build, build / "source.mov", words))
+                self.assertEqual(speed.wait_prosody(build, words), [{"db": 1.0}, {"db": 2.0}])
+                self.assertIsNone(speed.wait_prosody(build, words))  # taken once
+                speed.start_prosody(build, build / "source.mov", words)
+                self.assertIsNone(speed.wait_prosody(build, words[:1]))  # other words: not used
+            self.assertEqual(calls, ["prosody", "prosody"])
+            (build / "brain.json").write_text("{}")
+            self.assertFalse(speed.start_prosody(build, build / "source.mov", words))  # the brain is already done

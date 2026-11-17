@@ -226,6 +226,10 @@ def sense_stage(proj: Project) -> dict:
     console.step("Watching the footage (shots, light, motion, people, music)")
     ing = proj.read("ingest.json")
     tr = proj.read("transcript.json") or {}
+    from video_studio import speed  # 1.9.0: the editor brain's voice analysis runs while the footage is watched
+
+    if tr.get("words"):
+        speed.start_prosody(proj.build, _source(proj), tr["words"])
     spoken = sum(w["end"] - w["start"] for w in tr.get("words", []))
     ratio = min(1.0, spoken / max(1.0, ing["duration"]) * 1.6)
     try:
@@ -640,16 +644,19 @@ def _brain(proj: Project, words: list[dict], utts: list[dict]) -> dict:
     cached = proj.read("brain.json")
     if cached:
         return cached
-    prosody = None
-    try:
-        wav = proj.build / "voice16k.wav"
-        if not wav.exists():
-            ff.ff(["-i", str(_source(proj)), "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(wav)])
-        wfile = proj.build / "words_for_prosody.json"
-        wfile.write_text(json.dumps([{"start": w["start"], "end": w["end"]} for w in words]), encoding="utf-8")
-        prosody = ml.call("prosody", audio=wav, words=wfile, timeout=600)["words"]
-    except ToolError as exc:
-        console.warn(f"Prosody analysis unavailable ({str(exc)[:100]}); using word importance only.")
+    from video_studio import speed
+
+    prosody = speed.wait_prosody(proj.build, words)  # started in the background while the footage was watched
+    if prosody is None:
+        try:
+            wav = proj.build / "voice16k.wav"
+            if not wav.exists():
+                ff.ff(["-i", str(_source(proj)), "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(wav)])
+            wfile = proj.build / "words_for_prosody.json"
+            wfile.write_text(json.dumps([{"start": w["start"], "end": w["end"]} for w in words]), encoding="utf-8")
+            prosody = ml.call("prosody", audio=wav, words=wfile, timeout=600)["words"]
+        except ToolError as exc:
+            console.warn(f"Prosody analysis unavailable ({str(exc)[:100]}); using word importance only.")
     console.step("Editor brain: reading stress, pitch and key words")
     translation = (proj.read("transcript.json") or {}).get("translation") or []
     result = brain.analyze(words, prosody, utts, translation=translation)
