@@ -1,28 +1,43 @@
-# wt/speed — status 17 Nov 2026 (WIP, NOT verified)
+# wt/speed — status 17 Nov 2026 (DONE, committed, not merged)
 
-Goal: make the style pass (helpers/style_helper.py) much faster. Real edit 16 Nov 23:22 (52 s clip): style pass = 13 of 20.5 min,
-ran with 1 worker (engines/style.py _parallelism gives 1 worker when free RAM < ~3.3 GB) at ~2 frames/s.
+Branch wt/speed, based on 520ff1f. Footage edit only (ingest, sense, cut, style pass, render, export). ai.py untouched, no UI change.
 
-Profile (60 frames, original code): MediaPipe segmentation 32 s (every frame), numpy full-frame maths 25 s, bloom 9 s.
+## What changed
+- Style pass (helpers/style_helper.py, engines/style.py): two passes. Pass 1 = matte/face tracking in parallel
+  processes (24-frame warm-up per part, face targets + small mattes only where a slam/invert needs them). Pass 2 =
+  face path eased over the whole video, then compositing in parallel parts. OpenCV maths with per-channel scalars,
+  cached grain/vignette/cards/shadows. Workers from free memory: tracking 0.5 GB, compositing 0.8 GB each at
+  1080x1920, 1.5 GB kept free, max 6.
+- Fixed in passing: the old multi-worker style pass restarted the camera at the centre in every part, and part seeks
+  rounded up and skipped one frame. One worker and many workers now give the same video.
+- encoders.py (new): final encode picks the fastest working hardware encoder after a one-time test (slope of 15- vs
+  90-frame encodes, quality by VMAF or PSNR, >= 1.25x faster and <= 1 VMAF point worse), cached in encoder.json per
+  FFmpeg build; x264 fallback on any failure; config `render.encoder` forces one; TAKEBLOOM_NO_ENCODER_TEST skips.
+  Used by compose (final master) and export (reframe).
+- Sense (sense_helper.py, engines/sense.py): frame rows in up to 4 time ranges + audio in parallel processes. Same JSON.
+- speed.py (new) + editor.py: voice noise reduction starts in the background at transcription, prosody at sense,
+  cut pieces encoded up to 3 at a time. Same files.
+- tests/test_speed.py (offline; the real-model test is opt-in with TB_TEST_MATTE_MODEL).
 
-Changed (uncommitted before this WIP commit):
-- Matte.__call__(bgr, k, need): full matte only inside slam/invert windows (matte_needed(t), 0.4 s lead-in);
-  elsewhere segmentation every FACE_STEP=4 frames just for the face; camera still eases to the face every frame.
-- bloom() and new finish() use OpenCV multi-core ops (VIGN3/GRAIN3 precomputed, grain strength baked in).
-- frame float conversion in one pass; ZERO_MATTE stands in when the matte is not drawn.
+## Measured (55 s 1080x1920 test clip, "45 second reel, bold, remove mistakes", --no-ai, whisper small)
+PC shared with other agents, so all times are noisy. One queued run, old code then new code:
+- Total 533.9 s -> 368.7 s (8m53s -> 6m08s, -31%). Peak memory of one process 1142 MB -> 716 MB; whole tree
+  2766 MB -> 3853 MB (more workers at once).
+- Stages old -> new: ingest 11.1 -> 7.7, transcribe 23.9 -> 18.3, sense 75.4 -> 27.7, plan 3.9 -> 0.2, cut 36.4 -> 16.5,
+  render 374.3 -> 285.5 (style pass 301 -> 264 s with 2 -> 4+6 workers; finishing 62 -> 12 s), validate 6.9 -> 10.7.
+- cut.mov, transcript, sense, edit plan, style plan and cleaned voice: byte-identical old vs new.
+- Style pass alone on the identical plan (separate queued runs): original 1 worker 674.7 s (peak process 1128 MB);
+  new 1+1 workers 402.2 s (794 MB); new 4 drawing + 6 tracking workers 229.7 s (after the seek fix).
+- Picture vs original 1 worker, same plan: new 1+1 mean 50.8 dB, min 45.3 dB; new 4+6 mean 45.7 dB, min 42.8 dB,
+  0 frames below 40. Before the seek fix the 4+6 run had one frame at 28.1 dB (frame 612, a part start that took
+  the next source frame because cut.mov has timestamp gaps at piece joins). Fix: -copyts + 1 s lead-in + trim=start_pts
+  (style and sense). Seek scan of the real cut.mov: old seek wrong at 53 of 170 part starts, new seek 0 of 170.
+  Comparisons against other edit runs are not valid: the look (palette) is chosen at random per run.
+- Encoder test here: h264_qsv chosen, 5.5 vs 29 ms a frame, VMAF 84.1 vs 84.1; test took 13.5 s.
 
-Measured (CPU shared with 3 other agents, so noisy): slam range 180-260: 101 s -> 68 s; plain range 300-360: 79 s -> 49 s.
-Picture match vs original: PSNR 32.4 dB on one range (the other comparison printed nothing) -> NOT acceptable yet.
-Likely cause: camera path (face eased toward a target measured every 4 frames instead of every frame).
-
-Next:
-1. Re-measure on an idle PC. Compare frames visually (ffmpeg -vf select + hstack) old vs new.
-2. If the camera path differs: interpolate the face target linearly between measurements, or run segmentation
-   at 1/8 size every frame for the face only. Then expect PSNR > 40 dB except intentional changes.
-3. Grain/vignette maths must match exactly (check with a matte-free plan).
-4. Hardware encoder choice: measured on this laptop QSV veryfast 5.19 s VMAF 96.6 vs x264 medium (the standard
-   preset) 9.92 s VMAF 96.9 for 20 s 1080x1920 -> QSV ~1.9x faster at equal quality. Plan: machine.benchmark()
-   (2 s test, x264 vs each working hw encoder, VMAF if libvmaf), store in machine.json, ff.x264_args picks the
-   faster encoder for FINAL encodes only, with automatic x264 retry if a hw encode fails (qsv needs nv12, not yuv420p).
-5. Use measured benchmark fps in machine.assess() time estimates.
-Test inputs: %TEMP%\tb-speed\ (spec.json from scratchpad mkspec.py, base_180.mp4 / base_300.mp4 = original output).
+## Not done / not proven
+- The full edit above ran before the seek fix (a1a0561); the fix was checked with the style pass alone.
+- NVENC and AMF only unit-tested (no such card here). Transcription unchanged. Noise reduction itself is still one core.
+- Edits read the shared model store %LOCALAPPDATA%\VideoStudio\models (read only, nothing written) because
+  ml.models_dir() ignores VIDEO_STUDIO_HOME; set VIDEO_STUDIO_MODELS for full isolation next time.
+- Bench scripts are in the session scratchpad (runedit.py, finalbench.py, psnrbench.py, memwatch.py, psnr.py).
