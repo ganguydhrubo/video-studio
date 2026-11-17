@@ -202,14 +202,18 @@ def grade_like(img_u8):
     out = cv2.cvtColor(np.clip(lab, 0, 255).astype(np.uint8), cv2.COLOR_LAB2BGR)
     return np.minimum(out, np.maximum(img_u8, out)) if gL <= 1 else out
 
-yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
-VIGN = (1 - 0.26 * np.clip(((xx - W / 2) / (W * 0.62)) ** 2 + ((yy - H * 0.45) / (H * 0.66)) ** 2, 0, 1))[..., None]
-# Three-channel copies for OpenCV's multi-core maths (numpy broadcasting over a 1080x1920 frame is single-core).
-# The grain strength is baked in once instead of being multiplied on every frame; the same random numbers as before.
-VIGN3 = np.ascontiguousarray(np.repeat(VIGN, 3, 2))
-GRAIN3 = [np.ascontiguousarray(np.repeat(cv2.resize(RNG.normal(0, 1, (H // 2, W // 2)).astype(np.float32), (W, H))[..., None]
-                                         * P.get("grain", 0.022), 3, 2)) for _ in range(6)]
-del yy, xx, VIGN
+
+@lru_cache(1)
+def texture():
+    """Vignette and six film-grain frames (~190 MB at 1080x1920), built on first use: the tracking pass and the
+    process that only starts the workers never need them. Three-channel copies for OpenCV's multi-core maths;
+    the grain strength is baked in once; the same random numbers as always."""
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    vign = (1 - 0.26 * np.clip(((xx - W / 2) / (W * 0.62)) ** 2 + ((yy - H * 0.45) / (H * 0.66)) ** 2, 0, 1))[..., None]
+    del yy, xx
+    grain = [np.ascontiguousarray(np.repeat(cv2.resize(RNG.normal(0, 1, (H // 2, W // 2)).astype(np.float32), (W, H))[..., None]
+                                            * P.get("grain", 0.022), 3, 2)) for _ in range(6)]
+    return np.ascontiguousarray(np.repeat(vign, 3, 2)), grain
 
 
 def soft_blur(img, sigma):
@@ -234,7 +238,8 @@ def bloom(img, k):
 
 def finish(img, k):
     """Vignette + film grain + clip to 8-bit, in three multi-core passes."""
-    out = cv2.add(cv2.multiply(img, VIGN3), GRAIN3[k % 6])
+    vign, grain = texture()
+    out = cv2.add(cv2.multiply(img, vign), grain[k % 6])
     return cv2.convertScaleAbs(cv2.max(out, (0.0, 0.0, 0.0, 0.0)), alpha=255.0)
 
 
@@ -317,7 +322,11 @@ PUNCHES = P.get("punches", [])
 SLAMS = P["slams"]  # [{t0,t1,text,style}]
 CHIPS = P["chips"]  # [{t0,t1,text}]
 LOGOS = P["logos"]  # [{t0,t1,dir,frames,side}]
-ZERO_MATTE = np.zeros((H, W), np.float32)  # stands in for the matte on frames that never draw it
+
+
+@lru_cache(1)
+def zero_matte():
+    return np.zeros((H, W), np.float32)  # stands in for the matte on frames that never draw it
 
 
 def shot_at(t):
@@ -620,7 +629,9 @@ CF = 0x08000000 if sys.platform == "win32" else 0
 
 
 def decoder(first):
-    seek = ["-ss", f"{first / FPS:.4f}"] if first else []
+    # Seek half a millisecond before the frame: "-ss 2.0667" for frame 62 lands after it, and an exact-to-4-places
+    # time made the old renderer start some parts one frame late (a repeated frame at the join, effects one frame off).
+    seek = ["-ss", f"{max(0.0, first / FPS - 0.0005):.6f}"] if first else []
     return subprocess.Popen([P["ffmpeg"], "-v", "error", *seek, "-i", P["input"], "-vf", f"scale={W}:{H},fps={FPS}", "-f", "rawvideo",
                              "-pix_fmt", "bgr24", "-"], stdout=subprocess.PIPE, creationflags=CF)
 
@@ -713,7 +724,7 @@ def render_range(start, end, dst, track, tag="", progress=None):
         graded = cv2.LUT(grade_like(raw), LUT)
         frame = cv2.warpAffine(graded, M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
         frame = np.multiply(frame, np.float32(1 / 255), dtype=np.float32)
-        matte = cv2.warpAffine(m, M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT) if m is not None else ZERO_MATTE
+        matte = cv2.warpAffine(m, M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT) if m is not None else zero_matte()
         fpos = M[:, :2] @ face + M[:, 2]
         img = draw_slams(frame, matte, t, fpos)
         draw_chips(img, t, fpos)

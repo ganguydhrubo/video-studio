@@ -274,14 +274,22 @@ def matte_model() -> Path | None:
     return p if p.exists() else None
 
 
-def _parallelism() -> dict:
-    """Frame-range workers: ~1.3 GB each, 3 threads each; leave room for the desktop."""
+# Peak memory of one style worker at 1080x1920, measured on the 1.9.0 helper (with margin): the tracking pass
+# (MediaPipe person matte, one core each) and the drawing pass (OpenCV, several cores each).
+TRACK_GB, RENDER_GB, KEEP_FREE_GB = 0.5, 0.8, 1.5
+
+
+def _parallelism(cores: int | None = None, free_gb: float | None = None, pixels: int = 1080 * 1920) -> dict:
+    """Worker processes for the two style passes, from free memory and processor threads; room is left for the desktop."""
     from video_studio import resources
 
-    cores = resources.cpu_count()
-    free_gb = resources.memory().available_gb
-    workers = max(1, min(6, (cores - 2) // 3, int((free_gb - 2) / 1.3)))
-    return {"workers": workers, "enc_threads": 2 if workers > 1 else 0}
+    cores = cores or resources.cpu_count()
+    free_gb = resources.memory().available_gb if free_gb is None else free_gb
+    scale = max(0.25, pixels / (1080 * 1920))  # memory grows with the frame size
+    room = max(0.0, free_gb - KEEP_FREE_GB)
+    track = max(1, min(6, cores - 2, int(room / (TRACK_GB * scale))))
+    workers = max(1, min(6, (cores - 2) // 3, int(room / (RENDER_GB * scale))))
+    return {"workers": workers, "track_workers": track, "enc_threads": 2 if workers > 1 else 0}
 
 
 def render(cut: Path, dest: Path, plan: dict, w: int, h: int, fps: int, duration: float, look: str, quality: str, work: Path) -> Path:
@@ -293,7 +301,7 @@ def render(cut: Path, dest: Path, plan: dict, w: int, h: int, fps: int, duration
     spec = {**plan, "input": str(cut), "output": str(dest), "width": w, "height": h, "fps": fps, "duration": duration,
             "palette": palette(look), "fonts": str(resource_path("assets", "fonts")), "matte_model": str(model or ""),
             "ffmpeg": str(ff.ffmpeg()), "crf": {"draft": 20, "standard": 16, "high": 14}.get(quality, 16),
-            "preset": "veryfast" if quality != "high" else "medium", **_parallelism()}
+            "preset": "veryfast" if quality != "high" else "medium", **_parallelism(pixels=w * h)}
     work.mkdir(parents=True, exist_ok=True)
     spec_file = work / "style_plan.json"
     spec_file.write_text(json.dumps(spec, indent=1), encoding="utf-8")
