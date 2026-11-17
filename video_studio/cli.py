@@ -616,13 +616,20 @@ def cmd_cutout(args) -> int:
     from video_studio import cutout
     from video_studio.engines import ff
 
-    _precheck("cutout", seconds=ff.duration(Path(args.video)))
+    quality = "best" if args.best else "fast"
+    _precheck("cutout_best" if args.best else "cutout", seconds=ff.duration(Path(args.video)))
+    if args.best:  # 1.9.0 best quality: say the download (size, licence) before anything runs
+        from video_studio import matting
+
+        if not matting.model_present():
+            console.info(matting.download_text() + (" Downloading it now." if args.allow_download else ""))
     proj = _quick_project(args, "cutout", Path(args.video).stem + " cut-out")
     started = time.time()
     transparent = args.background == "transparent"
     out = proj.output / (("cutout.mov" if args.mov else "cutout.webm") if transparent else "master.mp4")
     media = args.image or args.background_video
-    result = cutout.run(Path(args.video), out, args.background, image=Path(media) if media else None, colour=args.colour)
+    result = cutout.run(Path(args.video), out, args.background, image=Path(media) if media else None, colour=args.colour,
+                        quality=quality, allow_download=args.allow_download)
     result = dict(result or {})
     result.setdefault("output", str(out))
     if transparent:  # the transparent file is the deliverable; Projects gets a playable preview on a plain colour
@@ -955,6 +962,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--image", help="background picture for --background image")
     s.add_argument("--background-video", help="background video for --background video")
     s.add_argument("--mov", action="store_true", help="transparent output as ProRes 4444 .mov instead of .webm")
+    s.add_argument("--best", action="store_true", help="best-quality edges (BiRefNet lite, much slower; 214 MB model)")
+    s.add_argument("--allow-download", action="store_true", help="allow the one-time best-quality model download")
     s.set_defaults(func=cmd_cutout)
 
     s = sub.add_parser("generate", help="AI video from text or a picture (needs a large NVIDIA card; says so otherwise)")

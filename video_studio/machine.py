@@ -274,6 +274,7 @@ def assess(s: dict | None = None) -> dict:
                  "Steadying and smooth slow motion are heavy on this PC; keep clips short." if t == "basic" else "Made locally with FFmpeg."),
         _feature("cutout", "Remove or replace the background", "ready" if (s.get("models") or {}).get("segmentation") else "install",
                  "A person-cutout model runs on the processor; about real time to a few times slower."),
+        _cutout_best(t, s),
         _feature("3d", "3D titles and scenes", "ready" if tools.get("blender") else "install",
                  "Blender renders 3D; on a basic PC keep 3D to short titles." if tools.get("blender") else "Install Blender (free) from Setup."),
         _feature("hd4k", "4K export", "ready" if lim["height"] >= 2160 else ("slow" if t == "plus" else "not_here"),
@@ -308,6 +309,24 @@ def assess(s: dict | None = None) -> dict:
             "encoder": encoders[0] if encoders else "libx264", "facts": _facts(s), "summary": _summary(t, lim, features)}
 
 
+def _cutout_best(t: str, s: dict) -> dict:
+    """1.9.0 best-quality cut-out (BiRefNet lite on the processor): always much slower than the fast cut-out."""
+    try:
+        from video_studio import matting
+
+        present, size = matting.model_present(), matting.MODEL["size"]
+    except Exception:  # noqa: BLE001
+        present, size = False, "214 MB"
+    name = "Best-quality cut-out (finer hair and edges)"
+    if t == "basic":
+        return _feature("cutout_best", name, "slow", "Best quality is very slow on this PC. Use Fast, or keep clips to a few seconds.")
+    if s.get("ram_free_gb", 99) < 1.5:
+        return _feature("cutout_best", name, "slow", "Best quality needs about 1.5 GB of free memory. Close other apps first.")
+    if not present:
+        return _feature("cutout_best", name, "install", f"Best quality needs a one-time {size} download (MIT licence) when you choose it.")
+    return _feature("cutout_best", name, "ready", "Runs on the processor; many times slower than the fast cut-out.")
+
+
 def _facts(s: dict) -> list[str]:
     cpu = s.get("cpu") or {}
     out = [f"Processor: {cpu.get('name', '?')} ({cpu.get('cores', '?')} cores, {cpu.get('threads', '?')} threads)",
@@ -331,9 +350,11 @@ def _summary(t: str, lim: dict, features: list[dict]) -> str:
     return text
 
 
+CUTOUT_BEST_WORK = 6.0  # rough, until this PC has measured its own best-quality speed (matting.estimate)
 # Work per second of output compared with a full edit (speech-to-text, planning, effects), measured on a
 # 13th-gen i7 laptop: a photo video took 2 s per second, a restyle about 1.3, a person cut-out about 13.
-TASK_WORK = {"photos": 0.15, "restyle": 0.3, "cutout": 1.0, "script": 1.0, "edit": 1.0}
+# The best-quality cut-out (1.9.0) uses its own measured speed when this PC has one (video_studio/matting.py).
+TASK_WORK = {"photos": 0.15, "restyle": 0.3, "cutout": 1.0, "cutout_best": CUTOUT_BEST_WORK, "script": 1.0, "edit": 1.0}
 
 
 def check(task: str, seconds: float | None = None, short_side: int | None = None, fps: float | None = None,
@@ -344,7 +365,7 @@ def check(task: str, seconds: float | None = None, short_side: int | None = None
     lim, msgs, level = a["limits"], [], "ok"
     feat = {f["key"]: f for f in a["features"]}
     want = {"edit": "edit", "make": "script", "script": "script", "photos": "photos", "restyle": "restyle", "cutout": "cutout",
-            "generate": "gen_text_to_video", "generate_image": "gen_image_to_video"}.get(task, task)
+            "cutout_best": "cutout_best", "generate": "gen_text_to_video", "generate_image": "gen_image_to_video"}.get(task, task)
     f = feat.get(want)
     if f and f["status"] in ("cloud_only", "not_here"):
         return {"level": "stop", "messages": [f["why"]], "assessment_summary": a["summary"], "tier": a["tier"]}
@@ -364,7 +385,17 @@ def check(task: str, seconds: float | None = None, short_side: int | None = None
             level = "warn"
             msgs.append(f"{seconds / 60:.0f} minutes of footage is more than the comfortable {lim['minutes']} minutes for this PC. "
                         "It will still finish; you can keep using the PC meanwhile.")
-        msgs.append(f"Expected time: about {_duration(work)} ({'measured' if a['speed']['measured'] else 'estimate'}).")
+        basis = "measured" if a["speed"]["measured"] else "estimate"
+        if want == "cutout_best":
+            try:
+                from video_studio import matting
+
+                est = matting.estimate(seconds, fps or 30.0)
+                if est.get("known"):
+                    work, basis = est["seconds"], est["basis"]
+            except Exception:  # noqa: BLE001 - fall back to the rough figure
+                pass
+        msgs.append(f"Expected time: about {_duration(work)} ({basis}).")
         free = scan(False).get("disk_free_gb", 999) if s is None else s.get("disk_free_gb", 999)
         need_gb = seconds * 0.06 + 1
         if free < need_gb:
