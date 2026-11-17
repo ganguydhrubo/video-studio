@@ -2,6 +2,7 @@
    window.TB holds the template's values (text, colours, sizes), written by video_studio/motion.py.
    Everything is a function of timeline time: seeded random only, no clocks, no network. */
 (function () {
+  window.__timelines = window.__timelines || {};   // set by HyperFrames on the main page; a piece inside a batch frame makes its own
   const TB = window.TB || {};
   const root = document.documentElement;
   Object.entries(TB.colors || {}).forEach(([k, v]) => root.style.setProperty("--" + k, v));

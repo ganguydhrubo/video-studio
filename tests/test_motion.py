@@ -198,6 +198,39 @@ class Rendering(unittest.TestCase):
         self.assertIn("png-sequence", calls[0])
         self.assertTrue((work / "three-motion.min.js").is_file())   # 3D pieces get three.js and the 3D font
 
+    def test_several_new_pieces_are_drawn_in_one_browser_run(self):
+        run, calls = fake_render(150)   # 2 s + 3 s at 30 fps
+        work = Path(self.tmp.name) / "batch"
+        pieces = [{"key": "k1", "html": "<html>a</html>", "kind": "title3d", "rw": 100, "rh": 40, "seconds": 2.0},
+                  {"key": "k2", "html": "<html>b</html>", "kind": "confetti", "rw": 60, "rh": 80, "seconds": 3.0}]
+        with patch.object(motion, "run", run), patch.object(motion, "hyperframes_cli", return_value=Path("hf.mjs")), \
+                patch("video_studio.detect.node_path", return_value=Path("node.exe")), \
+                patch("video_studio.engines.hyperframes._vendored_gsap", return_value=Path(motion.__file__)):
+            got = motion.render_all(pieces, 30, work)
+            again = motion.render_all(pieces, 30, work)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(list(got["k1"]["frames"].glob("*.png"))), 60)
+        self.assertEqual(len(list(got["k2"]["frames"].glob("*.png"))), 90)
+        self.assertEqual(got["k2"]["size"], [100, 80])   # the batch page is as big as the biggest piece
+        self.assertTrue(again["k1"]["cached"] and again["k2"]["cached"])
+        page = (work / "index.html").read_text(encoding="utf-8")
+        self.assertIn('src="p0.html"', page)
+        self.assertIn('data-start="2.0000"', page)
+        self.assertIn('window.__timelines["main"]', page)
+        self.assertTrue((work / "p1.html").is_file())
+
+    def test_a_failed_batch_is_retried_piece_by_piece(self):
+        class Bad:
+            returncode, stdout, stderr = 1, "", "Chrome crashed"
+        pieces = [{"key": "k1", "html": "<html>a</html>", "kind": "title", "rw": 10, "rh": 10, "seconds": 1.0},
+                  {"key": "k2", "html": "<html>b</html>", "kind": "title", "rw": 10, "rh": 10, "seconds": 1.0}]
+        with patch.object(motion, "run", return_value=Bad()) as r, patch.object(motion, "hyperframes_cli", return_value=Path("hf.mjs")), \
+                patch("video_studio.detect.node_path", return_value=Path("node.exe")), \
+                patch("video_studio.engines.hyperframes._vendored_gsap", return_value=Path(motion.__file__)):
+            got = motion.render_all(pieces, 30, Path(self.tmp.name) / "b")
+        self.assertEqual(got, {})
+        self.assertEqual(r.call_count, 3)
+
     def test_a_failed_render_is_a_plain_error(self):
         class Bad:
             returncode, stdout, stderr = 1, "", "Chrome crashed"
@@ -236,8 +269,10 @@ class EditPass(unittest.TestCase):
         proj = FakeProj(self.root, '3D title "Tea Time", name tag name: Asha Rao, confetti at the end')
         frames = self.root / "frames"
         frames.mkdir()
+        drawn = lambda pieces, fps, work: {x["key"]: {"frames": frames, "cached": False, "spent": 1.0, "size": [1080, 1920]}
+                                           for x in pieces}
         with patch.object(motion, "available", return_value=(True, "")), \
-                patch.object(motion, "render_piece", return_value=(frames, False, 1.0)) as rp:
+                patch.object(motion, "render_all", side_effect=drawn) as rp:
             out = motion.apply(proj, self.m, {"title": "Ignored"}, {"slams": [{"t0": 0.0, "t1": 1.5}]}, 1080, 1920, 20.0, "midnight")
         kinds = [i["kind"] for i in out["items"]]
         self.assertEqual(kinds, ["title3d", "lower_third", "confetti"])
@@ -245,9 +280,11 @@ class EditPass(unittest.TestCase):
         self.assertTrue(all(o["frames"] == str(frames) for o in out["overlays"]))
         self.assertTrue(out["quiet"])
         self.assertTrue(any(s[0] == "hit" for s in out["sfx"]))
-        first_html = rp.call_args_list[0].args[0]
-        self.assertIn("Tea Time", first_html)
-        self.assertEqual(rp.call_args_list[2].args[2:4], (540, 960))   # confetti is drawn at half size, then scaled up
+        pieces = rp.call_args.args[0]
+        self.assertIn("Tea Time", pieces[0]["html"])
+        self.assertEqual((pieces[2]["rw"], pieces[2]["rh"]), (540, 960))   # confetti is drawn at half size, then scaled up
+        self.assertEqual(out["overlays"][2]["crop"], [540, 960])   # cut from the corner of the bigger batch page
+        self.assertEqual((out["overlays"][2]["w"], out["overlays"][2]["h"]), (1080, 1920))
         self.assertEqual(len(self.m["motion"]["items"]), 3)
 
     def test_template_default_is_light_and_off_wins(self):
@@ -262,7 +299,8 @@ class EditPass(unittest.TestCase):
     def test_non_latin_3d_title_falls_back_to_a_flat_title(self):
         proj = FakeProj(self.root, "3d title")
         with patch.object(motion, "available", return_value=(True, "")), \
-                patch.object(motion, "render_piece", return_value=(self.root, False, 1.0)):
+                patch.object(motion, "render_all", side_effect=lambda pc, f, w: {x["key"]: {"frames": self.root, "cached": True,
+                                                                                         "spent": 0, "size": [x["rw"], x["rh"]]} for x in pc}):
             out = motion.apply(proj, self.m, {"title": "चाय का समय"}, {}, 1080, 1920, 20.0, "midnight")
         self.assertEqual([i["kind"] for i in out["items"]], ["title"])
 

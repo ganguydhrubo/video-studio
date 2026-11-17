@@ -370,7 +370,7 @@ def values(item: dict, want: dict, bw: int, bh: int, w: int, h: int, look: str) 
         tb["sizes"]["size"] = int(min(bw * 0.16, bh * 0.55, bw * 1.5 / max(4, len(item.get("text", "")))))
     elif k == "end_card":
         tb.update(text=want.get("end") or "Thanks for watching", sub=want.get("name") or want.get("title") or "")
-        tb["sizes"]["size"] = int(u * 0.085)
+        tb["sizes"]["size"] = int(u * 0.105)
         tb["colors"]["text-y"] = "62%" if want.get("_end_shape") else "50%"
     elif k == "shape3d":
         tb.update(shape=want.get("shape") or "gem", count=int(want.get("count") or 1))
@@ -471,7 +471,7 @@ def _prune(folder: Path, keep_mb: int = 600) -> None:
         total -= size
 
 
-def _stage(work: Path, html: str, three: bool) -> None:
+def _stage(work: Path, html: str, three: bool, name: str = "index.html") -> None:
     from video_studio.engines.hyperframes import _vendored_gsap
 
     work.mkdir(parents=True, exist_ok=True)
@@ -486,13 +486,144 @@ def _stage(work: Path, html: str, three: bool) -> None:
         shutil.copy2(vendor / "three-motion.min.js", work / "three-motion.min.js")
         (work / "font3d.js").write_text("window.TB_FONT = " + (vendor / "mukta_extrabold.typeface.json").read_text(encoding="utf-8")
                                         + ";", encoding="utf-8")
-    (work / "index.html").write_text(html, encoding="utf-8")
+    (work / name).write_text(html, encoding="utf-8")
+
+
+def _hf_render(work: Path, out: Path, fps: int, seconds: float) -> tuple[int, str]:
+    """`node hyperframes render <work> --format png-sequence`. Returns (exit code, last lines of its output)."""
+    from video_studio import detect
+
+    cli, node = hyperframes_cli(), detect.node_path()
+    if not cli or not node:
+        raise ToolError("HyperFrames is not set up.", "video-studio install hyperframes")
+    shutil.rmtree(out, ignore_errors=True)
+    workers = "3" if (os.cpu_count() or 4) >= 12 else "2"
+    env = {**os.environ, "DO_NOT_TRACK": "1", "HYPERFRAMES_NO_UPDATE_CHECK": "1"}
+    res = run([str(node), str(cli), "render", str(work), "--format", "png-sequence", "--output", str(out), "--fps", str(fps),
+               "--workers", workers, "--quiet"], check=False, timeout=180 + seconds * 60, cwd=work, low_priority=True, env=env)
+    tail = ((res.stderr or "") + (res.stdout or "")).strip().splitlines()[-3:]
+    return res.returncode, " | ".join(tail)[:300]
+
+
+def batch_page(parts: list[dict], fps: int) -> tuple[str, int, int, float]:
+    """One HyperFrames page that plays several pieces one after another, each in its own frame (so their scripts and
+    styles never meet). Starting the browser once instead of once per piece saves its start-up time for every piece.
+    parts: [{"file", "rw", "rh", "frames"}] -> (html, width, height, seconds)."""
+    W = max(x["rw"] for x in parts)
+    H = max(x["rh"] for x in parts)
+    at, rows, plan = 0, [], []
+    for i, x in enumerate(parts):
+        start, dur = at / fps, x["frames"] / fps
+        rows.append(f'<section class="clip" id="s{i}" data-start="{start:.4f}" data-duration="{dur:.4f}" data-track-index="0">'
+                    f'<iframe id="f{i}" src="{x["file"]}" width="{x["rw"]}" height="{x["rh"]}" scrolling="no"></iframe></section>')
+        plan.append({"id": f"f{i}", "start": round(start, 4), "dur": round(dur, 4)})
+        at += x["frames"]
+    total = at / fps
+    rows_html = "\n".join(rows)
+    html = f"""<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width={W}, height={H}">
+<script src="gsap.min.js"></script>
+<style>html, body {{ margin: 0; background: transparent; }}
+#root {{ position: relative; width: {W}px; height: {H}px; overflow: hidden; background: transparent; }}
+.clip {{ position: absolute; left: 0; top: 0; }}
+iframe {{ border: 0; display: block; background: transparent; }}</style></head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-width="{W}" data-height="{H}" data-duration="{total:.4f}" data-fps="{fps}">
+{rows_html}
+</div>
+<script>
+const P = {json.dumps(plan)};
+const frame = (p) => document.getElementById(p.id);
+function seekAll(t) {{
+  for (const p of P) {{
+    const w = frame(p).contentWindow;
+    const tl = w && w.__timelines && w.__timelines.main;
+    if (tl) tl.seek(Math.min(Math.max(t - p.start, 0), p.dur - 0.0001), false);
+  }}
+}}
+const st = {{ t: 0 }};
+const tl = gsap.timeline({{ paused: true }});
+tl.to(st, {{ t: {total:.4f}, duration: {total:.4f}, ease: "none", onUpdate: () => seekAll(st.t) }}, 0);
+window.addEventListener("hf-seek", (e) => seekAll(e.detail.time));
+window.__timelines["main"] = tl;
+window.__hf = window.__hf || {{}};
+window.__hf.buildReady = window.__hf.buildReady || {{}};
+window.__hf.buildReady.pieces = Promise.all(P.map((p) => new Promise((ok) => {{
+  const f = frame(p);
+  const done = () => {{
+    const w = f.contentWindow, b = (w && w.__hf && w.__hf.buildReady) || {{}};
+    Promise.all(Object.values(b)).then(() => {{ seekAll(0); ok(); }}, ok);
+  }};
+  if (f.contentDocument && f.contentDocument.readyState === "complete" && f.contentWindow.__timelines) done();
+  else f.addEventListener("load", done);
+}})));
+</script>
+</body></html>
+"""
+    return html, W, H, total
+
+
+def _size(dest: Path, x: dict) -> list[int]:
+    try:
+        return json.loads((dest / "size.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return [x["rw"], x["rh"]]
+
+
+def render_all(pieces: list[dict], fps: int, work: Path) -> dict[str, dict]:
+    """Render every piece not in the cache, together in one browser run. pieces: [{"key", "html", "kind", "rw", "rh",
+    "seconds"}] -> {key: {"frames": folder, "cached": bool, "spent": s, "size": [w, h]}}. A piece that fails alone is
+    left out (its key is missing); a failed batch is retried piece by piece so one bad page cannot stop the others."""
+    folder = cache_dir("motion")
+    out: dict[str, dict] = {}
+    todo: list[dict] = []
+    for x in pieces:
+        dest = folder / x["key"]
+        need = max(1, int(x["seconds"] * fps) - 1)
+        if dest.is_dir() and len(list(dest.glob("frame_*.png"))) >= need:
+            os.utime(dest)
+            out[x["key"]] = {"frames": dest, "cached": True, "spent": 0.0, "size": _size(dest, x)}
+        elif x["key"] not in {t["key"] for t in todo}:
+            todo.append(x)
+    if len(todo) > 1:
+        t0 = time.time()
+        parts = []
+        shutil.rmtree(work, ignore_errors=True)
+        work.mkdir(parents=True, exist_ok=True)
+        for i, x in enumerate(todo):
+            _stage(work, x["html"], KINDS[x["kind"]]["three"], f"p{i}.html")
+            parts.append({"file": f"p{i}.html", "rw": x["rw"], "rh": x["rh"], "frames": max(1, round(x["seconds"] * fps))})
+        html, W, H, total = batch_page(parts, fps)
+        (work / "index.html").write_text(html, encoding="utf-8")
+        code, tail = _hf_render(work, work / "frames", fps, total)
+        frames = sorted((work / "frames").glob("frame_*.png")) if (work / "frames").is_dir() else []
+        whole = sum(x["frames"] for x in parts)
+        if code == 0 and len(frames) >= whole - 1:
+            spent = time.time() - t0
+            at = 0
+            for x, part in zip(todo, parts):
+                dest = folder / x["key"]
+                shutil.rmtree(dest, ignore_errors=True)
+                dest.mkdir(parents=True)
+                for n, f in enumerate(frames[at:at + part["frames"]], 1):
+                    shutil.move(str(f), str(dest / f"frame_{n:06d}.png"))
+                (dest / "size.json").write_text(json.dumps([W, H]), encoding="utf-8")
+                at += part["frames"]
+                out[x["key"]] = {"frames": dest, "cached": False, "spent": spent * part["frames"] / whole, "size": [W, H]}
+            _prune(folder)
+            return out
+        console.warn("Motion: drawing the pieces together did not work (" + tail[:160] + "); drawing them one by one")
+    for i, x in enumerate(todo):
+        try:
+            frames, cached, spent = render_piece(x["html"], x["kind"], x["rw"], x["rh"], x["seconds"], fps, work / f"one_{i:02d}")
+            out[x["key"]] = {"frames": frames, "cached": cached, "spent": spent, "size": [x["rw"], x["rh"]]}
+        except ToolError as e:
+            console.warn(f"Motion: {KINDS[x['kind']]['name']} skipped. {e}")
+    return out
 
 
 def render_piece(html: str, kind: str, rw: int, rh: int, seconds: float, fps: int, work: Path) -> tuple[Path, bool, float]:
     """Render one page to a transparent PNG sequence. Returns (frames folder, came from cache, seconds spent)."""
-    from video_studio import detect
-
     scale = KINDS[kind]["scale"]
     folder = cache_dir("motion")
     key = _key(html, fps, scale)
@@ -501,22 +632,13 @@ def render_piece(html: str, kind: str, rw: int, rh: int, seconds: float, fps: in
     if dest.is_dir() and len(list(dest.glob("frame_*.png"))) >= need:
         os.utime(dest)
         return dest, True, 0.0
-    cli, node = hyperframes_cli(), detect.node_path()
-    if not cli or not node:
-        raise ToolError("HyperFrames is not set up.", "video-studio install hyperframes")
     t0 = time.time()
     _stage(work, html, KINDS[kind]["three"])
     out = work / "frames"
-    shutil.rmtree(out, ignore_errors=True)
-    workers = "3" if (os.cpu_count() or 4) >= 12 else "2"
-    env = {**os.environ, "DO_NOT_TRACK": "1", "HYPERFRAMES_NO_UPDATE_CHECK": "1"}
-    res = run([str(node), str(cli), "render", str(work), "--format", "png-sequence", "--output", str(out), "--fps", str(fps),
-               "--workers", workers, "--quiet"], check=False, timeout=180 + seconds * 60, cwd=work, low_priority=True, env=env)
+    code, tail = _hf_render(work, out, fps, seconds)
     frames = sorted(out.glob("frame_*.png")) if out.is_dir() else []
-    if res.returncode != 0 or len(frames) < need:
-        tail = ((res.stderr or "") + (res.stdout or "")).strip().splitlines()[-3:]
-        raise ToolError(f"HyperFrames could not draw the {KINDS[kind]['name'].lower()}: " + " | ".join(tail)[:300],
-                        "npx hyperframes doctor")
+    if code != 0 or len(frames) < need:
+        raise ToolError(f"HyperFrames could not draw the {KINDS[kind]['name'].lower()}: " + tail, "npx hyperframes doctor")
     shutil.rmtree(dest, ignore_errors=True)
     shutil.move(str(out), str(dest))
     _prune(folder)
@@ -563,27 +685,34 @@ def apply(proj, m: dict, p: dict, splan: dict, w: int, h: int, total: float, loo
     overlays, sfx, done = [], [], []
     names = ", ".join(KINDS[it["kind"]]["name"].lower() for it in items)
     console.step(f"Motion graphics: {names}")
-    for i, it in enumerate(items):
+    prepared = []
+    for it in items:
         x, y, bw, bh = box(it, w, h, cap_y, cap_top)
         scale = KINDS[it["kind"]]["scale"]
         rw, rh = max(2, int(bw * scale) // 2 * 2), max(2, int(bh * scale) // 2 * 2)
         seconds = it["end"] - it["start"]
         tb = values(it, want, rw, rh, w, h, look)
         html = page(it["kind"], tb, rw, rh, seconds, fps)
-        try:
-            frames, cached, spent = render_piece(html, it["kind"], rw, rh, seconds, fps, proj.build / "motion" / f"{i:02d}_{it['kind']}")
-        except ToolError as e:
-            console.warn(f"Motion: {KINDS[it['kind']]['name']} skipped. {e}")
-            record["notes"].append(f"{KINDS[it['kind']]['name']} skipped: {e}")
+        prepared.append({"it": it, "tb": tb, "box": (x, y, bw, bh), "key": _key(html, fps, scale), "html": html,
+                         "kind": it["kind"], "rw": rw, "rh": rh, "seconds": seconds})
+    drawn = render_all(prepared, fps, proj.build / "motion")
+    for x_ in prepared:
+        it, tb, (x, y, bw, bh) = x_["it"], x_["tb"], x_["box"]
+        got = drawn.get(x_["key"])
+        if not got:
+            record["notes"].append(f"{KINDS[it['kind']]['name']} skipped: HyperFrames could not draw it.")
             continue
-        console.info(f"Motion {it['start']:.1f}-{it['end']:.1f}s: {KINDS[it['kind']]['name']}"
-                     + (f" “{tb.get('title') or tb.get('name') or tb.get('text')}”" if tb.get('title') or tb.get('name') or tb.get('text') else "")
-                     + (" (from cache)" if cached else f" ({spent:.0f} s to draw)"))
-        overlays.append({"frames": str(frames), "start": it["start"], "end": it["end"], "x": x, "y": y, "w": bw, "h": bh, "fps": fps})
+        label = tb.get("title") or tb.get("name") or tb.get("text")
+        console.info(f"Motion {it['start']:.1f}-{it['end']:.1f}s: {KINDS[it['kind']]['name']}" + (f" “{label}”" if label else "")
+                     + (" (from cache)" if got["cached"] else f" ({got['spent']:.0f} s to draw)"))
+        ov = {"frames": str(got["frames"]), "start": it["start"], "end": it["end"], "x": x, "y": y, "w": bw, "h": bh, "fps": fps}
+        if list(got["size"]) != [x_["rw"], x_["rh"]]:
+            ov["crop"] = [x_["rw"], x_["rh"]]   # drawn inside a bigger batch page: keep the piece's own corner
+        overlays.append(ov)
         sfx += [(kind, it["start"] + at, gain) for kind, at, gain in KINDS[it["kind"]]["sfx"]]
         done.append(it)
-        record["items"].append({**{k: v for k, v in it.items() if k != "seed"}, "box": [x, y, bw, bh], "cached": cached,
-                                "draw_seconds": round(spent, 1)})
+        record["items"].append({**{k: v for k, v in it.items() if k != "seed"}, "box": [x, y, bw, bh], "cached": got["cached"],
+                                "draw_seconds": round(got["spent"], 1)})
     record["seconds"] = round(time.time() - t_start, 1)
     m["motion"] = record
     if done:

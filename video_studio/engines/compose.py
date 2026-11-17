@@ -36,7 +36,8 @@ def assemble_video(clips: list[Path], durations: list[float], transitions: list[
     for k, ov in enumerate(overlays or []):
         idx = ov_index + k
         if ov.get("frames"):
-            size = f"scale={ov['w']}:{ov['h']}:flags=bicubic," if ov.get("w") else ""
+            size = f"crop={ov['crop'][0]}:{ov['crop'][1]}:0:0," if ov.get("crop") else ""
+            size += f"scale={ov['w']}:{ov['h']}:flags=bicubic," if ov.get("w") else ""
             parts.append(f"[{idx}:v]format=rgba,{size}setpts=PTS-STARTPTS+{ov['start']:.3f}/TB[ov{k}]")
             parts.append(f"[{cur}][ov{k}]overlay={int(ov.get('x', 0))}:{int(ov.get('y', 0))}:eof_action=pass:"
                          f"enable='between(t,{ov['start']:.3f},{ov['end']:.3f})'[o{k}]")

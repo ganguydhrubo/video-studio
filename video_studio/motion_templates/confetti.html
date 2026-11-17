@@ -29,7 +29,7 @@ for (let i = 0; i < N; i++) {
   pieces.push({
     x0: left ? W * 0.04 : W * 0.96, y0: H * 1.02,
     vx: Math.cos(ang * Math.PI / 180) * sp, vy: Math.sin(ang * Math.PI / 180) * sp,
-    delay: rnd() * 0.35, k: 1.6 + rnd() * 1.2, w: U * (0.012 + rnd() * 0.012), h: U * (0.006 + rnd() * 0.008),
+    delay: rnd() * 0.35, k: 1.6 + rnd() * 1.2, w: U * (0.02 + rnd() * 0.016), h: U * (0.01 + rnd() * 0.01),
     rot: rnd() * 6.28, spin: (rnd() - 0.5) * 14, flip: 6 + rnd() * 10, col: COLS[i % COLS.length], round: rnd() < 0.22,
   });
 }
