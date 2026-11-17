@@ -32,7 +32,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 from video_studio.project import Project
-from video_studio.util import ToolError, console, fmt_seconds, read_json, sha
+from video_studio.util import ToolError, console, fmt_seconds, sha
 
 COMP_ID = "takebloom-edit"
 VERSION = 1
@@ -399,7 +399,6 @@ def parse(proj: Project, path: Path | None = None) -> dict:
     r.feed(path.read_text(encoding="utf-8"))
     if r.root.get("data-composition-id") != COMP_ID:
         raise ToolError("This is not a Takebloom timeline.")
-    folder = path.parent
     model: dict = {"base": r.root.get("data-tb-base", ""), "cuts": [], "captions": [], "pictures": [], "broll": [], "music": None}
     kind = lambda it: it["attrs"].get("data-tb-kind")  # noqa: E731
     for it in sorted((x for x in r.items if kind(x) == "cut"), key=lambda x: _num(x["attrs"], "data-start")):
@@ -443,7 +442,6 @@ def parse(proj: Project, path: Path | None = None) -> dict:
                 model["music"] = {"volume": _num(a, "data-volume", 0.14), "on": "data-hidden" not in a}
             else:
                 model["music"] = {"volume": _num(a, "data-tb-volume", 0.14), "on": a.get("data-tb-on") != "false"}
-    _ = folder
     return model
 
 
@@ -730,4 +728,4 @@ def run_cli(args) -> int:
 
 
 __all__ = ["base_model", "layout", "write", "parse", "normalize", "load", "save", "caption_words", "rebuild", "render",
-           "preview_file", "api_get", "api_save", "run_cli", "comp_path", "signature", "read_json"]
+           "preview_file", "api_get", "api_save", "run_cli", "comp_path", "signature"]
