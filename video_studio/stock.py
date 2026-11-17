@@ -423,4 +423,12 @@ def apply_pass(proj, m: dict, p: dict, video: Path, splan: dict, w: int, h: int,
     for c in cuts:
         console.info(f"Stock {c['t0']:.1f}-{c['t1']:.1f}s: {c['why']}")
     console.ok(f"Stock footage: {len(cuts)} free clip(s) added; credits in {credits}")
-    return broll.apply(video, cuts, w, h, m["fps"], proj.build / "with_stock.mp4", proj.settings["quality"])
+    try:
+        return broll.apply(video, cuts, w, h, m["fps"], proj.build / "with_stock.mp4", proj.settings["quality"])
+    except Exception as exc:  # noqa: BLE001 - a clip FFmpeg cannot read must not stop the edit
+        console.warn(f"Stock footage: the clips could not be laid over the film ({str(exc)[:100]}); the film is kept without them.")
+        m["broll"] = [c for c in m["broll"] if not c.get("stock")]
+        m["stock"]["used"] = []
+        proj.write("edit_manifest.json", m)
+        credits.unlink(missing_ok=True)
+        return video

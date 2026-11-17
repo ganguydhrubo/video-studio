@@ -302,6 +302,17 @@ class Pass(Home):
         self.assertIn("Asha Rao", credits)
         self.assertIn("https://www.pexels.com/video/tea-leaves-111/", credits)
 
+    def test_an_unreadable_clip_never_stops_the_edit(self):
+        proj = FakeProject(Path(self.tmp.name) / "p", "tea reel with stock footage", {})
+        m = self.manifest()
+        clip = Path(self.tmp.name) / "clip.mp4"
+        clip.write_bytes(b"x")
+        with patch.object(stock, "keys", return_value={"pexels": "k"}),                 patch.object(stock, "search", return_value=stock.pexels_results(PEXELS)),                 patch.object(stock, "download", return_value=clip),                 patch("video_studio.engines.ff.duration", return_value=14.0),                 patch("video_studio.broll.apply", side_effect=RuntimeError("bad clip")):
+            out = stock.apply_pass(proj, m, self.plan(), Path("cut.mp4"), {}, 1080, 1920, 19.0)
+        self.assertEqual(out, Path("cut.mp4"))
+        self.assertFalse((proj.exports / "credits.txt").exists())
+        self.assertEqual(m["broll"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

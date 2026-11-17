@@ -1059,7 +1059,7 @@ def cut(proj: Project) -> dict:
         from video_studio import jlcut
 
         manifest.update(jlcut.apply(proj, p, tr["words"], out_pieces, audio_src, cut_file))
-    except (ToolError, OSError, ValueError) as exc:
+    except Exception as exc:  # noqa: BLE001 - the plain cut is always a safe fallback
         console.warn(f"J/L-cuts skipped ({str(exc)[:100]}); plain cuts are used.")
     proj.write("edit_manifest.json", manifest)
     proj.mark("cut", "done", pieces=len(out_pieces), seconds=round(total, 1))
