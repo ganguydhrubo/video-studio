@@ -157,8 +157,11 @@ def place(want: dict, total: float, busy: list[tuple[float, float]], chips: list
     title = next((k for k in ("title3d", "title") if k in kinds), None)
     title_item = None
     if title:
-        dur = fit(title)
-        s = _free(0.1, max(0.1, total * 0.35), dur, busy + chips)
+        s = None
+        for dur in (fit(title), 2.6):
+            s = _free(0.1, max(0.1, total * 0.35), dur, busy + chips)
+            if s is not None:
+                break
         if s is None:
             notes.append(f"{KINDS[title]['name']} left out: the opening is busy with the film's own big text.")
         else:
@@ -178,14 +181,17 @@ def place(want: dict, total: float, busy: list[tuple[float, float]], chips: list
         if not want.get("name") and not want.get("place"):
             notes.append("Name tag left out: no name was given. Write “name: Your Name” in the prompt.")
         else:
-            dur = fit("lower_third")
             lo = (title_item["end"] + 0.4) if title_item else 0.8
-            hi = (end_item["start"] - dur - 0.3) if end_item else total - dur - 0.3
-            s = _free(lo, max(lo, min(hi, total * 0.6)), dur, busy + text)
-            if s is None:
+            placed = False
+            for dur in (fit("lower_third"), 3.0, 2.4):   # shorter when the film is busy, never under 2.4 s
+                hi = (end_item["start"] - dur - 0.3) if end_item else total - dur - 0.3
+                s = _free(lo, max(lo, min(hi, total * 0.75)), dur, busy + text)
+                if s is not None:
+                    add("lower_third", s, dur)
+                    placed = True
+                    break
+            if not placed:
                 notes.append("Name tag left out: no free moment for it.")
-            else:
-                add("lower_third", s, dur)
     if "callout" in kinds:
         dur = fit("callout")
         lo = (title_item["end"] + 0.6) if title_item else 1.0
