@@ -157,6 +157,17 @@ class PortableOnly(Temp):
             self.assertIsNone(toolbox._base_python_for_fallback())
         self.assertFalse(detect.PORTABLE_ONLY)  # off unless asked for
 
+    def test_npm_folder_prefers_the_cmd_shim(self):
+        """A stripped PATH falls back to the npm folder, which holds `claude` (a shell script) and `claude.cmd`."""
+        from video_studio import util
+
+        d = self.tmp / "npm"
+        d.mkdir()
+        (d / "claude").write_text("#!/bin/sh")
+        (d / "claude.cmd").write_text("@echo off")
+        with patch.object(util.shutil, "which", return_value=None), patch.object(util, "IS_WINDOWS", True):
+            self.assertEqual(util.which("claude", [d]), d / "claude.cmd")
+
     def test_cli_accepts_the_optional_extras(self):
         from video_studio import cli
 
