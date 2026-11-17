@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width={{W}}, height={{H}}">
+{{HEAD}}
+<style>
+html, body { margin: 0; background: transparent; }
+#root { position: relative; width: {{W}}px; height: {{H}}px; overflow: hidden; background: transparent; }
+.clip { position: absolute; inset: 0; }
+canvas { position: absolute; left: 0; top: 0; width: {{W}}px; height: {{H}}px; }
+</style></head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-width="{{W}}" data-height="{{H}}" data-duration="{{DUR}}" data-fps="{{FPS}}">
+  <section class="clip" id="scene" data-start="0" data-duration="{{DUR}}" data-track-index="0">
+    <canvas id="cv" width="{{W}}" height="{{H}}"></canvas>
+  </section>
+</div>
+<script>
+/* Light leak: warm film-style light washing across the frame, peaking in the middle of the piece. */
+const D = {{DUR}}, W = {{W}}, H = {{H}};
+const cx = document.getElementById("cv").getContext("2d");
+const rnd = TB.rand(TB.seed || 3);
+const COLS = TB.palette && TB.palette.length ? TB.palette : ["255,122,24", "255,61,127", "255,200,90"];
+const fromLeft = rnd() < 0.5;
+const blobs = COLS.map((c, i) => ({ c, y: H * (0.15 + rnd() * 0.7), r: Math.max(W, H) * (0.35 + rnd() * 0.25), lag: i * 0.12, a: 0.55 + rnd() * 0.3 }));
+function draw(t) {
+  cx.clearRect(0, 0, W, H);
+  const p = t / D, env = Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0, p))), 1.4);
+  for (const b of blobs) {
+    const q = Math.min(1, Math.max(0, p * 1.1 - b.lag));
+    const x = fromLeft ? -b.r * 0.4 + (W + b.r * 0.8) * q : W + b.r * 0.4 - (W + b.r * 0.8) * q;
+    const gr = cx.createRadialGradient(x, b.y, 0, x, b.y, b.r);
+    gr.addColorStop(0, `rgba(${b.c},${b.a * env})`);
+    gr.addColorStop(0.45, `rgba(${b.c},${b.a * env * 0.45})`);
+    gr.addColorStop(1, `rgba(${b.c},0)`);
+    cx.fillStyle = gr;
+    cx.fillRect(0, 0, W, H);
+  }
+}
+const st = { t: 0 };
+const tl = gsap.timeline({ paused: true });
+tl.to(st, { t: D, duration: D, ease: "none", onUpdate: () => draw(st.t) }, 0);
+window.addEventListener("hf-seek", (e) => { st.t = e.detail.time; draw(st.t); });
+draw(0);
+window.__timelines["main"] = tl;
+</script>
+</body></html>

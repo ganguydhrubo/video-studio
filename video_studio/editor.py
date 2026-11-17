@@ -26,7 +26,7 @@ import time
 from difflib import SequenceMatcher
 from pathlib import Path
 
-from video_studio import config, memory, planner, qa
+from video_studio import config, memory, motion, planner, qa
 from video_studio.ai import Director
 from video_studio.engines import canvas, captions, compose, ff, ml, music, tts
 from video_studio.looks import LOOKS
@@ -87,7 +87,8 @@ def run_cli(args) -> int:
                             "broll": getattr(args, "broll", None),
                             "pictures": [str(p.resolve()) for p in dropped["pictures"] if p.is_file()],
                             "hard_cuts": bool(getattr(args, "hard_cuts", False)), "stock": bool(getattr(args, "stock", False)),
-                            "platforms": args.platform}
+                            "platforms": args.platform, "template": getattr(args, "template", None),
+                            "graphics": getattr(args, "graphics", None) or "auto"}
     proj.save(data)
     from video_studio.cli import _apply_overrides
 
@@ -1153,7 +1154,7 @@ def render(proj: Project) -> Path:
             style.render(cut_video, styled, splan, w, h, m["fps"], total, look, s["quality"], proj.build / "style")
         cut_video = styled
         sfx_events += style.sfx_events(splan)
-    elif p.get("title"):
+    elif p.get("title") and not motion.skips_canvas_title(proj):
         png = canvas.overlay_png("title", p["title"], "", w, h, look, gfx_dir / "title.png")
         overlays.append({"png": png, "start": 0.15, "end": min(3.0, total * 0.4)})
         sfx_events.append(("hit", 0.12, 0.35))
@@ -1164,10 +1165,29 @@ def render(proj: Project) -> Path:
         png = canvas.overlay_png(g["type"], g["text"], g.get("sub", ""), w, h, look, gfx_dir / f"g{i}.png")
         overlays.append({"png": png, "start": at + 0.2, "end": min(total - 0.2, at + (2.2 if g["type"] == "keyword" else 3.5))})
         sfx_events.append(("whoosh" if g["type"] == "lower_third" else "pop", max(0.0, at), 0.3))
+    # cutaways go in first, but the caption position is measured on YOUR face (the video before them)
+    face_video = cut_video
+    cut_video = _broll_pass(proj, m, p, cut_video, splan if fx != "off" else {}, w, h, total)
+    from video_studio import pictures, stock
+
+    cut_video = stock.apply_pass(proj, m, p, cut_video, splan if fx != "off" else {}, w, h, total)
+    cut_video = pictures.apply_pass(proj, m, cut_video, splan if fx != "off" else {}, w, h, total)
+    show_captions = bool(words) and d["captions"] != "none" and s.get("captions_enabled", True)
+    y_cap = (0.72 if fx != "off" else 0.78) if h > w else 0.9
+    if show_captions and h > w:
+        place = _caption_place(proj, face_video, y_cap)
+        y_cap = place["y"]
+        m["caption_place"] = place
+        console.info(f"Captions {'from' if place['top'] else 'at'} {y_cap:.0%} of the height: {place['why']}")
+    cap_top = bool(m.get("caption_place", {}).get("top")) if h > w and show_captions else False
+    # motion graphics and 3D (motion.py): placed around slams, cutaways and pictures, above the captions
+    mo = motion.apply(proj, m, p, splan if fx != "off" else {}, w, h, total, look, y_cap, cap_top)
+    overlays += mo["overlays"]
+    sfx_events += mo["sfx"]
     ass = srt = None
     if words:
         srt = captions.build_srt(words, proj.build / "captions.srt")
-        if d["captions"] != "none" and s.get("captions_enabled", True):
+        if show_captions:
             cap_words = words
             if fx != "off":
                 spans = [(x["t0"] - 0.05, x["t1"] + 0.15) for x in splan["slams"]]
@@ -1175,25 +1195,13 @@ def render(proj: Project) -> Path:
                 fonts = proj.build / "fonts"
                 if not fonts.exists():
                     shutil.copytree(resource_path("assets", "fonts"), fonts)
-            y_cap = (0.72 if fx != "off" else 0.78) if h > w else 0.9
-            if h > w:
-                place = _caption_place(proj, cut_video, y_cap)
-                y_cap = place["y"]
-                m["caption_place"] = place
-                console.info(f"Captions {'from' if place['top'] else 'at'} {y_cap:.0%} of the height: {place['why']}")
-                if place["top"] and fx != "off":  # top captions would collide with chips; the chip already says it
+                if cap_top:  # top captions would collide with chips; the chip already says it
                     busy = [(c["t0"] - 0.05, c["t1"] + 0.05) for c in splan.get("chips", [])]
                     cap_words = [x for x in cap_words if not any(a <= x["start"] < b for a, b in busy)]
+            if mo["quiet"]:  # big titles, kinetic words and the end card speak for themselves
+                cap_words = [x for x in cap_words if not any(a <= x["start"] < b for a, b in mo["quiet"])]
             ass = captions.build_ass(cap_words, w, h, "reel" if fx != "off" and d["captions"] != "none" else d["captions"],
-                                     look, proj.build / "captions.ass", y_ratio=y_cap,
-                                     top=bool(m.get("caption_place", {}).get("top")) if h > w else False)
-    # cutaways go in after the caption position was measured on YOUR face; captions are then burned on top
-    cut_video = _broll_pass(proj, m, p, cut_video, splan if fx != "off" else {}, w, h, total)
-    from video_studio import pictures, stock
-
-    cut_video = stock.apply_pass(proj, m, p, cut_video, splan if fx != "off" else {}, w, h, total)
-
-    cut_video = pictures.apply_pass(proj, m, cut_video, splan if fx != "off" else {}, w, h, total)
+                                     look, proj.build / "captions.ass", y_ratio=y_cap, top=cap_top)
     m["srt"] = str(srt) if srt else ""
     proj.write("edit_manifest.json", m)
     console.step("Finishing: graphics, captions, grade")

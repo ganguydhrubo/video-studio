@@ -54,6 +54,9 @@ def main():
                 raise AssertionError('Write without token accepted')
             except urllib.error.HTTPError as error:
                 assert error.code==403
+            bundle = Path(executable).parent / '_internal' / 'motion_templates'   # motion graphics pages and three.js
+            for name in ('kit.js', 'title3d.html', 'confetti.html', 'vendor/three-motion.min.js', 'vendor/mukta_extrabold.typeface.json'):
+                assert (bundle / name).is_file(), f'missing in the build: motion_templates/{name}'
             print('Packaged app passed:',health['version'])
         finally:
             proc.terminate()
