@@ -37,7 +37,7 @@ where Takebloom still speaks. No generation features. `ai.py` untouched. No UI c
 - ASS `\kf` times run one after another. 1.8.1 used only each word's length, so any gap between word times inside a
   caption line made all later words light up early by that gap. New `captions.karaoke_body()` puts each gap on the
   space before the next word (`{\k..}`), with positions rounded from the line start (no rounding drift).
-- Honest size of it (`%TEMP%	b-speech\karaoke_cmp.py`, real whisper transcripts): raw whisper words touch each other,
+- Honest size of it (`%TEMP%\tb-speech\karaoke_cmp.py`, real whisper transcripts): raw whisper words touch each other,
   so old and new give the same times (max 5-10 ms). Gaps appear once starts are moved out of pauses: on the noisy
   David clip the 1.8.1 formula then lit 2 words 140 ms early; 1.9.0 keeps every word within 10 ms.
 
@@ -56,12 +56,12 @@ where Takebloom still speaks. No generation features. `ai.py` untouched. No UI c
   throws away a whole 30 s piece instead of one sentence, with no temperature fallback. Left as an opt-in helper flag.
 
 ## End-to-end check: a real edit with karaoke captions
-- Clip: 14.1 s test-pattern video + Zira speech with 0.4 s and 1.2 s pauses between lines (`%TEMP%	b-speech\mk_edit_clip.py`,
+- Clip: 14.1 s test-pattern video + Zira speech with 0.4 s and 1.2 s pauses between lines (`%TEMP%\tb-speech\mk_edit_clip.py`,
   true word times from the fixed SAPI). Run through the shared queue:
   `py -3.13 -m video_studio edit talk.mp4 "short tips video, tighten the pauses, karaoke captions" --no-ai --fx off
   --captions karaoke --no-music --aspect 16:9 --quality draft --whisper-model small --platform youtube`
   Finished in 56.8 s: 32 words, cut to 9.3 s in 4 pieces.
-- Measured (`%TEMP%	b-speech\measure_e2e.py`): each true word was found in the master's audio by matching the
+- Measured (`%TEMP%\tb-speech\measure_e2e.py`): each true word was found in the master's audio by matching the
   source audio, then compared with when its karaoke fill starts in `captions.ass`.
   All 32 words lit. Offset: mean 57 ms, median 50 ms, max 160 ms; mean signed -54 ms (lights slightly BEFORE the word;
   never more than 26 ms after it). The cut timeline matches the audio: mean +6 ms, max 35 ms.
