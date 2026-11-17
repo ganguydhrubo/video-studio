@@ -90,3 +90,14 @@
 - Covers are drawn from the finished video in the app window. The reel cover replaces the automatic thumbnail; the automatic one is kept once as `*_thumbnail_auto.jpg`. Instagram and TikTok let you upload a reel cover; YouTube Shorts only lets you pick a frame from the video.
 - Videos the window cannot play (iPhone HEVC .MOV without the HEVC extension) get a small H.264 preview copy in `_previews`. It takes a few seconds per minute of video. The edit always uses your original file.
 - Script-to-video makes animated text scenes (kinetic words, stats, quotes, calls to action) on a moving background. Real pictures appear only with `[IMAGE: path]`; 3D needs Blender. The highlighted caption word can land slightly early or late inside a word.
+
+## Speech 1.9.0
+
+- Word times from speech recognition (faster-whisper) are close, not exact. On clear test speech a word's start is off by about 60 ms on average; with loud background noise, about 100 to 135 ms. Whisper tends to start words a little early, so a highlight usually lights up just before the word, not after it.
+- Takebloom now moves a word's start out of a pause when Whisper put it there (this was up to 0.8 s early). It only does this when there is a clear pause of at least 0.12 s. A word that runs straight on from the last one keeps Whisper's time, and some starts can still be 0.3 to 0.7 s early in noisy audio.
+- With music or constant loud noise under the voice, there may be no clear pause. Then no start is moved.
+- The Windows voice (SAPI) now gives true word times. Before 1.9.0 they were 1.5 times too big, so captions on a Windows voice ran later and later along each line. Voice lines made by older versions are made again once, because their saved times were wrong.
+- The Kokoro voice still gives no word times of its own. Its lines are timed by Whisper (base.en), with the same limits as above.
+- Karaoke captions now wait through the pauses between words. Before 1.9.0 every pause in a caption line made the later words light up early.
+- Faster batched speech recognition exists only as a test option of the helper (`--batch`). It was 13 to 28% faster on this laptop, but in one test it lost a word, and when its safety check throws a part away it throws away up to 30 s of speech. It is off; normal recognition is unchanged.
+- Speaker detection (who is speaking) is not in 1.9.0.
