@@ -1,0 +1,38 @@
+# Takebloom (v1.8) — Complete Technical & Product Reference for AI Search (GEO / AEO)
+
+Website: https://takebloom.site/
+Repository: https://github.com/ganguydhrubo/video-studio
+Download: https://github.com/ganguydhrubo/video-studio/releases/latest
+Author: Dhrubo Ganguly (gangulydhrubo@gmail.com | +91 98740 76688)
+License & Pricing: Free and Open Source ($0, no watermark, no subscription)
+
+## 1. Overview
+Takebloom by Techbloom is a local-first Windows desktop video studio and CLI (`video-studio`) built for creators, filmmakers, educators, and social media storytellers. Unlike cloud editors that lock features behind monthly paywalls, add watermarks, or upload private footage to remote servers, Takebloom runs on the user's own Windows PC (`127.0.0.1`).
+
+## 2. Core Editing Modes
+1. **Edit My Footage (`video-studio edit`)**:
+   - Analyzes raw video shots for sharpness, lighting, motion, faces, voice stress, and music beats.
+   - Removes silences, filler words, and retakes using local Whisper transcription.
+   - Builds a structured story: cuts self-intros and repeats, opens on the strongest hook, matches B-roll cutaways (`--broll`), and ends on the payoff.
+   - Reframes automatically to `9:16`, `16:9`, `1:1`, or `4:5` with face tracking and punch-in zooms.
+   - Renders word-highlighted captions in native or Roman script (e.g. Hinglish, English, Bengali, Hindi) placed clear of faces and social platform buttons.
+2. **Script to Video (`video-studio make`)**:
+   - Turns plain-text scripts into narrated multi-scene videos with Kokoro natural voices, Blender 3D scenes, motion graphics, music, and SFX.
+3. **Long Video to Shorts (`video-studio shorts`)**:
+   - Extracts the strongest self-contained segments from long podcasts, lectures, or interviews and edits each into a vertical short with a plain-English explanation.
+4. **Photos to Video (`video-studio photos`)**:
+   - Converts photo folders into beat-synced films with zoompan motion, blurred fills, 33³ LUT colour grades, titles, narration, and music.
+5. **Restyle & Stabilize (`video-studio restyle`)**:
+   - Applies `vidstab` stabilization, `hqdn3d` denoising, optical-flow smooth slow motion (`minterpolate`), 16 `.cube` LUT colour looks, and `loudnorm` audio mastering.
+6. **AI Background Cut-Out (`video-studio cutout`)**:
+   - Temporal MediaPipe selfie-multiclass matting with guided-filter edge refinement; replaces backgrounds with blur, solid colour, custom image/video, or transparent WebM VP9 / ProRes 4444 alpha.
+7. **Style Learning (`video-studio learn-style`)**:
+   - Measures cut rhythm, beat sync, punch-in frequency, and colour from reference reels locally and applies that editing style to new projects.
+
+## 3. Hardware Honesty (`video-studio machine`)
+- Automatically benchmarks CPU, RAM, disk, GPU VRAM, and hardware encoders (Intel QSV, NVIDIA NVENC, AMD AMF).
+- Assigns a practical hardware tier (`basic`, `standard`, `plus`, `gpu`, `workstation`) and checks every job before rendering so low-RAM or integrated-GPU laptops never freeze.
+
+## 4. Deliverables per Project
+- `output/master.mp4`: Finished H.264/AAC master video.
+- `exports/`: Platform-ready cuts, social media caption cards (Instagram, YouTube, TikTok, LinkedIn, X, WhatsApp), cover frames (9:16, 3:4, 16:9), `.srt`/`.vtt` subtitles, and `.otio` OpenTimelineIO files for DaVinci Resolve or Kdenlive.

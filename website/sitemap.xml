@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:video="http://www.google.com/schemas/sitemap-video/1.1"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc>https://takebloom.site/</loc>
+    <lastmod>2026-11-17</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+
+    <image:image>
+      <image:loc>https://takebloom.site/takebloom-logo.png</image:loc>
+      <image:title>Takebloom — Unlimited Free AI &amp; Local Video Editing Studio for Windows</image:title>
+      <image:caption>Official Takebloom logo by Techbloom</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://takebloom.site/scene-1.jpg</image:loc>
+      <image:title>Takebloom Automatic Story Cut &amp; Word-Highlighted Captions — Kolkata Ghats</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://takebloom.site/scene-2.jpg</image:loc>
+      <image:title>Takebloom Beat-Synced Montage &amp; 16 Colour Looks — Darjeeling Tea Hills</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://takebloom.site/scene-3.jpg</image:loc>
+      <image:title>Takebloom Local Windows Video Editing Workspace</image:title>
+    </image:image>
+
+    <video:video>
+      <video:thumbnail_loc>https://takebloom.site/scene-1.jpg</video:thumbnail_loc>
+      <video:title>Takebloom Auto Story Editing, Silence Removal &amp; Dynamic Word Captions Demo</video:title>
+      <video:description>See how Takebloom automatically removes silences, locks onto the strongest hook, matches B-roll, applies 33-cube LUT colour grading, and renders word-highlighted captions locally on Windows for free.</video:description>
+      <video:content_loc>https://takebloom.site/clip-1.mp4</video:content_loc>
+      <video:duration>8</video:duration>
+      <video:publication_date>2026-11-17T00:00:00+05:30</video:publication_date>
+      <video:family_friendly>yes</video:family_friendly>
+      <video:live>no</video:live>
+      <video:tag>free video editor</video:tag>
+      <video:tag>auto captions video editor</video:tag>
+      <video:tag>AI video editor Windows</video:tag>
+      <video:tag>Takebloom</video:tag>
+    </video:video>
+
+    <video:video>
+      <video:thumbnail_loc>https://takebloom.site/scene-2.jpg</video:thumbnail_loc>
+      <video:title>Takebloom Beat-Synced Video Montage, 0.5x Optical Slow Motion &amp; 9:16 Face-Track Reframe</video:title>
+      <video:description>Turn travel and lifestyle footage into beat-synced montages with 16 colour looks, optical-flow slow motion, VidStab stabilization, and smart 9:16 Reels/Shorts face-tracking.</video:description>
+      <video:content_loc>https://takebloom.site/clip-2.mp4</video:content_loc>
+      <video:duration>8</video:duration>
+      <video:publication_date>2026-11-17T00:00:00+05:30</video:publication_date>
+      <video:family_friendly>yes</video:family_friendly>
+      <video:live>no</video:live>
+      <video:tag>beat synced video editor</video:tag>
+      <video:tag>9:16 auto reframe</video:tag>
+      <video:tag>colour grading LUT video editor</video:tag>
+    </video:video>
+
+    <video:video>
+      <video:thumbnail_loc>https://takebloom.site/scene-3.jpg</video:thumbnail_loc>
+      <video:title>Takebloom 1.8 Unlimited Free Local Desktop Video Studio for Windows</video:title>
+      <video:description>Edit locally on your Windows PC with zero watermarks and zero subscriptions. Includes 24 templates, 57 transitions, AI background cut-out, and instant social media export.</video:description>
+      <video:content_loc>https://takebloom.site/clip-3.mp4</video:content_loc>
+      <video:duration>8</video:duration>
+      <video:publication_date>2026-11-17T00:00:00+05:30</video:publication_date>
+      <video:family_friendly>yes</video:family_friendly>
+      <video:live>no</video:live>
+      <video:tag>unlimited free video editor</video:tag>
+      <video:tag>offline video editor PC</video:tag>
+      <video:tag>no watermark video editor</video:tag>
+    </video:video>
+
+    <video:video>
+      <video:thumbnail_loc>https://takebloom.site/scene-1.jpg</video:thumbnail_loc>
+      <video:title>Clips Become a Story — Automatic Story Editing &amp; Karaoke Captions</video:title>
+      <video:description>Automatic story assembly from raw clips and photos with silence cutting, beat alignment, and dynamic word-by-word captions.</video:description>
+      <video:content_loc>https://takebloom.site/art-story.mp4</video:content_loc>
+      <video:duration>6</video:duration>
+      <video:publication_date>2026-11-17T00:00:00+05:30</video:publication_date>
+      <video:family_friendly>yes</video:family_friendly>
+      <video:live>no</video:live>
+    </video:video>
+
+    <video:video>
+      <video:thumbnail_loc>https://takebloom.site/scene-2.jpg</video:thumbnail_loc>
+      <video:title>Set the Mood — 16 33-Cube LUT Colour Grades, 24 Templates &amp; Slow Motion</video:title>
+      <video:description>Compare Original, Golden Hour 33-cube LUT, and Silver Screen Noir colour grading with optical-flow slow motion and video stabilization.</video:description>
+      <video:content_loc>https://takebloom.site/art-grade.mp4</video:content_loc>
+      <video:duration>6</video:duration>
+      <video:publication_date>2026-11-17T00:00:00+05:30</video:publication_date>
+      <video:family_friendly>yes</video:family_friendly>
+      <video:live>no</video:live>
+    </video:video>
+
+    <video:video>
+      <video:thumbnail_loc>https://takebloom.site/scene-3.jpg</video:thumbnail_loc>
+      <video:title>Keep It Close — Takebloom 1.8 Desktop Studio &amp; PC Hardware Check</video:title>
+      <video:description>Inside the Takebloom 1.8 Windows workspace: automatic PC hardware compatibility scan, transcript-based keep/cut editing, and multi-track timeline.</video:description>
+      <video:content_loc>https://takebloom.site/art-desktop.mp4</video:content_loc>
+      <video:duration>6</video:duration>
+      <video:publication_date>2026-11-17T00:00:00+05:30</video:publication_date>
+      <video:family_friendly>yes</video:family_friendly>
+      <video:live>no</video:live>
+    </video:video>
+  </url>
+  <url>
+    <loc>https://takebloom.site/llms.txt</loc>
+    <lastmod>2026-11-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://takebloom.site/llms-full.txt</loc>
+    <lastmod>2026-11-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+</urlset>

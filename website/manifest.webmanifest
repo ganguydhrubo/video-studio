@@ -1,0 +1,18 @@
+{
+  "name": "Takebloom — Desktop Video Studio",
+  "short_name": "Takebloom",
+  "description": "Unlimited free local AI & desktop video editing studio for Windows. Auto story cuts, word-highlighted captions, 16 colour looks, and beat-synced editing.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f5ef",
+  "theme_color": "#233d33",
+  "categories": ["video", "multimedia", "photo", "productivity"],
+  "icons": [
+    {
+      "src": "takebloom-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
