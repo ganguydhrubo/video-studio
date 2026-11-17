@@ -1,0 +1,73 @@
+# Takebloom (takebloom.site) — Maximum Search Engine, Video Search & AI/GEO/AEO Visibility
+User-agent: *
+Allow: /
+
+# Major Search Engine & Video Crawlers
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Video
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+# AI Search, Answer Engines & Generative Engine Optimization (GEO / AEO)
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Meta-ExternalAgent
+Allow: /
+
+User-agent: Meta-ExternalFetcher
+Allow: /
+
+User-agent: YouBot
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+Host: https://takebloom.site
+Sitemap: https://takebloom.site/sitemap.xml
+# AI / LLM Context Index: https://takebloom.site/llms.txt
+# Full AI Technical Reference: https://takebloom.site/llms-full.txt
