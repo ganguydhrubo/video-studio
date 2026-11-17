@@ -91,10 +91,27 @@ def transcribe(audio: Path, model: str = "small", language: str = "") -> dict:
     try:
         from video_studio import vocab
 
-        return call("transcribe", audio=pcm, model=model, language=language, threads=resources.render_threads(),
+        data = call("transcribe", audio=pcm, model=model, language=language, threads=resources.render_threads(),
                     vocab="|".join(vocab.words()))
+        _fix_word_starts(data, pcm)
+        return data
     finally:
         pcm.unlink(missing_ok=True)
+
+
+def _fix_word_starts(data: dict, pcm: Path) -> None:
+    """Whisper puts some word starts inside the pause before the word: move them to where the sound begins
+    (speech.trim_silent_starts), so captions and karaoke light up on the spoken word. Never fails the transcript."""
+    try:
+        from video_studio import speech
+
+        samples, sr = speech.read_wav(pcm)
+        words = data.get("words") or []
+        fixed = speech.trim_silent_starts(words, samples, sr)
+        data["moved_starts"] = sum(1 for a, b in zip(words, fixed) if a["start"] != b["start"])
+        data["words"] = fixed
+    except Exception:  # noqa: BLE001 - an extra; whisper's own times stand
+        pass
 
 
 def kokoro(items: list[dict], voice: str, speed: float, lang: str = "a") -> dict:

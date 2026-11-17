@@ -65,6 +65,25 @@ def chunk_words(words: list[dict], per_chunk: int, max_gap: float = 0.6) -> list
     return chunks
 
 
+def karaoke_body(chunk: list[dict], texts: list[str], line_start: float) -> str:
+    """ASS karaoke text where each word's fill starts at that word's own start time.
+
+    \\k times run one after another, so the pause between two words must be counted too: it goes on the space
+    after the earlier word (a plain \\k, nothing visible changes). Positions are rounded from the line start, so
+    rounding never adds up along a long line."""
+    parts, cursor = [], 0
+    for i, (w, t) in enumerate(zip(chunk, texts)):
+        a = max(cursor, int(round((w["start"] - line_start) * 100)))
+        b = max(a + 1, int(round((w["end"] - line_start) * 100)))
+        if i + 1 < len(chunk):  # never fill past the next word's start
+            b = max(a + 1, min(b, int(round((chunk[i + 1]["start"] - line_start) * 100))))
+        if parts:
+            parts.append(f"{{\\k{a - cursor}}} " if a > cursor else " ")
+        parts.append(f"{{\\kf{b - a}}}{t}")
+        cursor = b
+    return "".join(parts)
+
+
 def build_ass(words: list[dict], width: int, height: int, style: str, look: str, dest: Path,
               y_ratio: float = 0.72, overlays: list[dict] | None = None, top: bool = False) -> Path:
     """words: absolute-timed [{text,start,end}] for the whole video."""
@@ -98,8 +117,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         end = min(end, limit - 0.12) if limit - 0.12 > start else start + 0.2
         texts = [(w["text"].upper() if st["upper"] else w["text"]).replace("{", "(").replace("}", ")") for w in chunk]
         if style == "karaoke":
-            body = "".join(f"{{\\kf{max(1, int(round((w['end'] - w['start']) * 100)))}}}{t} " for w, t in zip(chunk, texts))
-            lines.append(f"Dialogue: 0,{_ts(start)},{_ts(min(end + 0.15, limit))},Cap,,0,0,0,,{{\\1c&HFFFFFF&\\2c{hi}&}}{body.strip()}")
+            body = karaoke_body(chunk, texts, start)
+            lines.append(f"Dialogue: 0,{_ts(start)},{_ts(min(end + 0.15, limit))},Cap,,0,0,0,,{{\\1c&HFFFFFF&\\2c{hi}&}}{body}")
             continue
         # One event per word: the active word is highlighted (and pops) while the rest stay white.
         for i, w in enumerate(chunk):

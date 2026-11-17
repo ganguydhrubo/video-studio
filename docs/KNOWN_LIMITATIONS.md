@@ -101,3 +101,14 @@
 - A song in the drop is used as the music, from its start. Only one song per film. With "no music" in the prompt and a song in the drop, the song is still used.
 - The prompt is read by fixed word rules (English with some common Hinglish words), not by AI, so it works offline and instantly. Words outside the rules are not turned into settings, but the AI editor still reads the whole prompt for the story. Unusual phrasing may be missed; the "Takebloom will" list shows exactly what was understood before the edit starts. Fine-tune choices always win over the prompt.
 - Not possible in an edit yet, and said so when asked: 3D objects or 3D text, slow motion inside an edit (use Restyle), a logo or watermark placement, a new voice-over, stock footage, created or AI-generated footage. Background removal is the separate Remove background tool.
+
+## Speech 1.9.0
+
+- Word times from speech recognition (faster-whisper) are close, not exact. On clear test speech a word's start is off by about 60 ms on average; with loud background noise, about 100 to 135 ms. Whisper tends to start words a little early, so a highlight usually lights up just before the word, not after it.
+- Takebloom now moves a word's start out of a pause when Whisper put it there (this was up to 0.8 s early). It only does this when there is a clear pause of at least 0.12 s. A word that runs straight on from the last one keeps Whisper's time, and some starts can still be 0.3 to 0.7 s early in noisy audio.
+- With music or constant loud noise under the voice, there may be no clear pause. Then no start is moved.
+- The Windows voice (SAPI) now gives true word times. Before 1.9.0 they were 1.5 times too big, so captions on a Windows voice ran later and later along each line. Voice lines made by older versions are made again once, because their saved times were wrong.
+- The Kokoro voice still gives no word times of its own. Its lines are timed by Whisper (base.en), with the same limits as above.
+- Karaoke captions now wait through any gap between two words' times. Before 1.9.0 such a gap made the later words in the line light up early. In a real test edit, every karaoke word lit up between 160 ms before and 26 ms after it was heard (57 ms on average).
+- Faster batched speech recognition exists only as a test option of the helper (`--batch`). It was 13 to 28% faster on this laptop, but in one test it lost a word, and when its safety check throws a part away it throws away up to 30 s of speech. It is off; normal recognition is unchanged.
+- Speaker detection (who is speaking) is not in 1.9.0.

@@ -31,6 +31,23 @@ def _word_end(w) -> float:
     return min(w.end, w.start + max(1.2, 0.18 * len(w.word.strip())))
 
 
+def _sentences(words: list, max_words: int = 30, max_gap: float = 0.8) -> list[list]:
+    """Split one long (batched, up to 30 s) segment's words into sentence-sized pieces: at full stops, at long
+    pauses, or every `max_words` words."""
+    out, cur = [], []
+    for w in words:
+        if cur and (w.start - cur[-1].end > max_gap or len(cur) >= max_words):
+            out.append(cur)
+            cur = []
+        cur.append(w)
+        if w.word.rstrip().endswith((".", "?", "!", "।")):
+            out.append(cur)
+            cur = []
+    if cur:
+        out.append(cur)
+    return out
+
+
 def transcribe(args: argparse.Namespace) -> None:
     try:
         from faster_whisper import WhisperModel
@@ -43,17 +60,34 @@ def transcribe(args: argparse.Namespace) -> None:
     # The app hands us 16 kHz mono PCM, decoded by FFmpeg; reading it here avoids PyAV version issues.
     with wave.open(args.audio, "rb") as wf:
         pcm = np.frombuffer(wf.readframes(wf.getnframes()), dtype="<i2").astype("float32") / 32768.0
+    import time
+
+    started = time.time()
     model = WhisperModel(args.model, device="cpu", compute_type="int8", cpu_threads=args.threads)
+    loaded = time.time()
     opts = dict(language=args.language or None, word_timestamps=True, vad_filter=True,
                 vad_parameters={"min_silence_duration_ms": 300}, condition_on_previous_text=False)
+    # Batched decoding: the speech found by VAD is packed into <=30 s pieces and decoded `batch` pieces at a time.
+    # Same model, same word timestamps; much better use of the CPU cores than one window after another.
+    runner, batch = model, max(0, int(getattr(args, "batch", 0) or 0))
+    if batch > 0:
+        try:
+            from faster_whisper import BatchedInferencePipeline
+
+            runner = BatchedInferencePipeline(model=model)
+            opts["batch_size"] = batch
+            # (with timestamp tokens on, faster-whisper 1.2 drops the unfinished last sentence of each 30 s piece;
+            # without them each piece is one segment, split back into sentences below from the word timings)
+        except ImportError:  # faster-whisper older than 1.1
+            runner, batch = model, 0
     vocab = [v.strip() for v in (args.vocab or "").split("|") if v.strip()]
     if vocab:  # the creator's own names/brands: biased decoding (hotwords) or a context prompt on older versions
         try:
-            segments, info = model.transcribe(pcm, hotwords=" ".join(vocab), **opts)
+            segments, info = runner.transcribe(pcm, hotwords=" ".join(vocab), **opts)
         except TypeError:
-            segments, info = model.transcribe(pcm, initial_prompt=", ".join(vocab), **opts)
+            segments, info = runner.transcribe(pcm, initial_prompt=", ".join(vocab), **opts)
     else:
-        segments, info = model.transcribe(pcm, **opts)
+        segments, info = runner.transcribe(pcm, **opts)
     import re
 
     words, segs, dropped = [], [], 0
@@ -65,7 +99,9 @@ def transcribe(args: argparse.Namespace) -> None:
         kept = [w for w in (seg.words or []) if w.probability >= 0.2 and not re.search(r"(.)\1{4,}", w.word)]
         if not kept:
             continue
-        segs.append({"start": seg.start, "end": seg.end, "text": "".join(w.word for w in kept).strip()})
+        for part in _sentences(kept) if batch else [kept]:
+            segs.append({"start": seg.start if not batch else part[0].start, "end": seg.end if not batch else part[-1].end,
+                         "text": "".join(w.word for w in part).strip()})
         for w in kept:
             words.append({"text": w.word.strip(), "start": round(w.start, 3), "end": round(_word_end(w), 3), "p": round(w.probability, 3)})
     translation = []
@@ -76,6 +112,8 @@ def transcribe(args: argparse.Namespace) -> None:
         try:
             tmodel = model if "turbo" not in args.model else WhisperModel(  # turbo was trained without translation
                 args.translate_model, device="cpu", compute_type="int8", cpu_threads=args.threads)
+            # one window after another, as before: the meaning has no word timings to split 30 s batched pieces by
+            t_opts = {k: v for k, v in t_opts.items() if k != "batch_size"}
             for seg in tmodel.transcribe(pcm, task="translate", **t_opts)[0]:
                 if seg.no_speech_prob <= 0.6 and seg.compression_ratio <= 2.4:
                     translation.append({"start": round(seg.start, 3), "end": round(seg.end, 3), "text": seg.text.strip()})
@@ -128,7 +166,9 @@ def transcribe(args: argparse.Namespace) -> None:
                                           "segments": segs, "words": words, "dropped_segments": dropped,
                                           "relistened_words": relistened,
                                           "translation": [t for t in translation if "text" in t],
-                                          "model": args.model}), encoding="utf-8")
+                                          "model": args.model, "batch": batch,
+                                          "seconds": {"load": round(loaded - started, 2),
+                                                      "total": round(time.time() - started, 2)}}), encoding="utf-8")
 
 
 def kokoro(args: argparse.Namespace) -> None:
@@ -518,6 +558,7 @@ def main() -> None:
     t.add_argument("--vocab", default="")
     t.add_argument("--translate", type=int, default=1)
     t.add_argument("--translate-model", default="small")
+    t.add_argument("--batch", type=int, default=0)  # 0 = one window after another; N = batched decoding
     k = sub.add_parser("kokoro")
     k.add_argument("--items", required=True)
     k.add_argument("--voice", default="af_heart")
