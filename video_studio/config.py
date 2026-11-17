@@ -43,7 +43,18 @@ DEFAULTS: dict[str, Any] = {
     "resources.max_threads": 0,       # 0 = auto (cores - 2)
     "resources.min_free_disk_gb": 3,
     "workspace": "",
+    # free stock footage (stock.py): your own free keys from pexels.com/api and pixabay.com/api/docs. Optional.
+    "stock.pexels_key": "",
+    "stock.pixabay_key": "",
 }
+SECRETS = {"stock.pexels_key", "stock.pixabay_key"}   # never printed or logged
+
+
+def shown(key: str, value: Any) -> Any:
+    """What `config list/get/set` may print: a secret key only as set or not set."""
+    if key in SECRETS:
+        return "(set, hidden)" if value else ""
+    return value
 
 
 def config_path() -> Path:

@@ -500,12 +500,12 @@ def cmd_memory(args) -> int:
 def cmd_config(args) -> int:
     if args.cfg_cmd == "list":
         for k, v in config.load().items():
-            console.info(f"{k:<32} {json.dumps(v)}")
+            console.info(f"{k:<32} {json.dumps(config.shown(k, v))}")
     elif args.cfg_cmd == "get":
-        print(json.dumps(config.get(args.key)))
+        print(json.dumps(config.shown(args.key, config.get(args.key))))
     elif args.cfg_cmd == "set":
         config.set_value(args.key, args.value)
-        console.ok(f"{args.key} = {json.dumps(config.get(args.key))}")
+        console.ok(f"{args.key} = {json.dumps(config.shown(args.key, config.get(args.key)))}")
     elif args.cfg_cmd == "reset":
         config.reset(args.key)
         console.ok("Reset.")
@@ -902,6 +902,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="roman = write Hindi/Bengali/etc. captions in Latin letters (Hinglish style)")
     s.add_argument("--whisper-model", default="auto", help="auto (best model already downloaded) | tiny | base | small | medium | large-v3-turbo")
     s.add_argument("--platform", nargs="+", default=["shorts"], choices=["shorts", "reels", "tiktok", "youtube", "square", "feed45"])
+    s.add_argument("--hard-cuts", action="store_true", help="no J-cuts or L-cuts: sound and picture change at the same instant")
+    s.add_argument("--stock", action="store_true",
+                   help="add a few free stock cutaways from Pexels/Pixabay (needs your own free key: config set stock.pexels_key ...)")
     _add_format_options(s)
     _add_style_options(s)
     s.set_defaults(func=cmd_edit)
