@@ -359,6 +359,8 @@ def check(task: str, seconds: float | None = None, short_side: int | None = None
                 est = matting.estimate(seconds, fps or 30.0)
                 if est.get("known"):
                     work, basis = est["seconds"], est["basis"]
+                else:
+                    basis = "rough estimate until the first run"   # the PC's edit speed is measured, Best quality is not
             except Exception:  # noqa: BLE001 - fall back to the rough figure
                 pass
         msgs.append(f"Expected time: about {_duration(work)} ({basis}).")
