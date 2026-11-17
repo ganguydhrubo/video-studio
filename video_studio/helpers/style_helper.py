@@ -128,8 +128,15 @@ def over(dst, src, x, y, alpha=1.0):
     if x0 >= x1 or y0 >= y1 or alpha <= 0:
         return
     s = src[y0 - y:y1 - y, x0 - x:x1 - x]
-    a = s[..., 3:4] * alpha
-    dst[y0:y1, x0:x1] = dst[y0:y1, x0:x1] * (1 - a) + s[..., :3] * a
+    a = s[..., 3] * alpha
+    # dst * (1 - a) + rgb * a, with OpenCV's multi-core operations (same arithmetic as numpy broadcasting)
+    roi = dst[y0:y1, x0:x1]
+    roi[...] = cv2.add(cv2.multiply(roi, ch3(1 - a)), cv2.multiply(np.ascontiguousarray(s[..., :3]), ch3(a)))
+
+
+def ch3(a):
+    """A one-channel float image repeated into three channels (what numpy broadcasting does implicitly)."""
+    return cv2.merge([a, a, a])
 
 
 def place(dst, src, cx, cy, scale=1.0, angle=0.0, alpha=1.0, blur=0.0):
@@ -146,9 +153,19 @@ def place(dst, src, cx, cy, scale=1.0, angle=0.0, alpha=1.0, blur=0.0):
     over(dst, im, int(cx - nw / 2), int(cy - nh / 2), alpha)
 
 
+_SHADOW = {}
+
+
 def shadow_of(sprite, blur=18, op=0.55):
-    a = soft_blur(sprite[..., 3], blur) * op
-    return np.dstack([np.zeros(sprite.shape[:2] + (3,), np.float32), a])
+    # sprites come from lru caches, so the same word's shadow is built once instead of on every frame
+    key = (id(sprite), blur, op)
+    hit = _SHADOW.get(key)
+    if hit is None or hit[0] is not sprite:
+        if len(_SHADOW) > 16:
+            _SHADOW.clear()
+        a = soft_blur(sprite[..., 3], blur) * op
+        hit = _SHADOW[key] = (sprite, np.dstack([np.zeros(sprite.shape[:2] + (3,), np.float32), a]))
+    return hit[1]
 
 
 # ------------------------------------------------------------------ grade / texture
@@ -184,14 +201,15 @@ def grade_like(img_u8):
         lab[..., c] = (lab[..., c] - mu[c]) * g + mu[c] + shift
     out = cv2.cvtColor(np.clip(lab, 0, 255).astype(np.uint8), cv2.COLOR_LAB2BGR)
     return np.minimum(out, np.maximum(img_u8, out)) if gL <= 1 else out
+
 yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
 VIGN = (1 - 0.26 * np.clip(((xx - W / 2) / (W * 0.62)) ** 2 + ((yy - H * 0.45) / (H * 0.66)) ** 2, 0, 1))[..., None]
-GRAIN = [cv2.resize(RNG.normal(0, 1, (H // 2, W // 2)).astype(np.float32), (W, H))[..., None] for _ in range(6)]
 # Three-channel copies for OpenCV's multi-core maths (numpy broadcasting over a 1080x1920 frame is single-core).
-# The grain strength is baked in once instead of being multiplied on every frame.
+# The grain strength is baked in once instead of being multiplied on every frame; the same random numbers as before.
 VIGN3 = np.ascontiguousarray(np.repeat(VIGN, 3, 2))
-GRAIN3 = [np.ascontiguousarray(np.repeat(g * P.get("grain", 0.022), 3, 2)) for g in GRAIN]
-del yy, xx
+GRAIN3 = [np.ascontiguousarray(np.repeat(cv2.resize(RNG.normal(0, 1, (H // 2, W // 2)).astype(np.float32), (W, H))[..., None]
+                                         * P.get("grain", 0.022), 3, 2)) for _ in range(6)]
+del yy, xx, VIGN
 
 
 def soft_blur(img, sigma):
@@ -206,8 +224,9 @@ def soft_blur(img, sigma):
 
 
 def bloom(img, k):
-    # same maths as clip(img - 0.6, 0, 1) -> blur at 1/8 -> add, but with OpenCV's multi-core operations
-    hi = cv2.min(cv2.max(cv2.subtract(img, (0.6, 0.6, 0.6, 0.0)), 0.0), 1.0)
+    # same maths as clip(img - 0.6, 0, 1) -> blur at 1/8 -> add, but with OpenCV's multi-core operations.
+    # Scalars are given per channel: OpenCV reads a bare number as (v, 0, 0, 0).
+    hi = cv2.min(cv2.max(cv2.subtract(img, (0.6, 0.6, 0.6, 0.0)), (0.0, 0.0, 0.0, 0.0)), (1.0, 1.0, 1.0, 1.0))
     small = cv2.resize(hi, (W // 8, H // 8), interpolation=cv2.INTER_AREA)
     g = cv2.add(cv2.GaussianBlur(small, (0, 0), 4), cv2.GaussianBlur(small, (0, 0), 12))
     return cv2.scaleAdd(cv2.resize(g, (W, H)), float(k), img)
@@ -216,12 +235,14 @@ def bloom(img, k):
 def finish(img, k):
     """Vignette + film grain + clip to 8-bit, in three multi-core passes."""
     out = cv2.add(cv2.multiply(img, VIGN3), GRAIN3[k % 6])
-    return cv2.convertScaleAbs(cv2.max(out, 0.0), alpha=255.0)
+    return cv2.convertScaleAbs(cv2.max(out, (0.0, 0.0, 0.0, 0.0)), alpha=255.0)
 
 
 # ------------------------------------------------------------------ person matte + face
 
 class Matte:
+    """MediaPipe person segmentation with the temporal smoothing the style pass has always used."""
+
     def __init__(self, model):
         self.seg = None
         self.prev = None
@@ -233,48 +254,56 @@ class Matte:
             self.seg = vision.ImageSegmenter.create_from_options(vision.ImageSegmenterOptions(
                 base_options=BaseOptions(model_asset_path=str(model)), running_mode=vision.RunningMode.VIDEO,
                 output_confidence_masks=True))
-        self.face = np.array([W / 2, H * 0.42], np.float32)
-        self.target = None  # latest measured face position; the camera eases toward it every frame
-        self.last = -10**9
 
-    def __call__(self, bgr, k, need=True):
-        """Person matte at full size when `need` (words behind the speaker, invert glow), else None.
-        Segmentation is the slowest step of the style pass, so outside those windows it runs only every
-        FACE_STEP frames, just to keep the face position fresh; the per-frame camera smoothing is unchanged."""
+    def measure(self, bgr, k):
+        """Smoothed person matte at 1/4 size and the face target measured on it (None when no person is found)."""
         if self.seg is None:
-            return np.zeros((H, W), np.float32) if need else None
-        if need or k - self.last >= FACE_STEP:
-            self.last = k
-            small = cv2.cvtColor(cv2.resize(bgr, (W // 4, H // 4), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2RGB)
-            r = self.seg.segment_for_video(self.mp.Image(image_format=self.mp.ImageFormat.SRGB, data=np.ascontiguousarray(small)),
-                                           int(k * 1000 / FPS))
-            m = 1 - r.confidence_masks[0].numpy_view()
-            self.prev = m if self.prev is None else 0.65 * m + 0.35 * self.prev
-            self.mask = np.clip((self.prev - 0.35) / 0.4, 0, 1).astype(np.float32)
-            # face: top of the person mass, horizontally its centre there
-            m = self.mask
-            rows = np.where(m.max(1) > 0.5)[0]
-            if len(rows) > 10:
-                top = rows[0]
-                band = m[top:top + m.shape[0] // 7]
-                cols = np.where(band.max(0) > 0.5)[0]
-                if len(cols):
-                    self.target = np.array([(cols[0] + cols[-1]) / 2 * 4, (top + m.shape[0] * 0.11) * 4], np.float32)
-        if self.target is not None:
-            self.face = 0.85 * self.face + 0.15 * self.target
-        return cv2.resize(self.mask, (W, H), interpolation=cv2.INTER_LINEAR) if need else None
+            return None, None
+        small = cv2.cvtColor(cv2.resize(bgr, (W // 4, H // 4), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2RGB)
+        r = self.seg.segment_for_video(self.mp.Image(image_format=self.mp.ImageFormat.SRGB, data=np.ascontiguousarray(small)),
+                                       int(k * 1000 / FPS))
+        m = 1 - r.confidence_masks[0].numpy_view()
+        self.prev = m if self.prev is None else 0.65 * m + 0.35 * self.prev
+        m = np.clip((self.prev - 0.35) / 0.4, 0, 1).astype(np.float32)
+        # face: top of the person mass, horizontally its centre there
+        target = None
+        rows = np.where(m.max(1) > 0.5)[0]
+        if len(rows) > 10:
+            top = rows[0]
+            band = m[top:top + m.shape[0] // 7]
+            cols = np.where(band.max(0) > 0.5)[0]
+            if len(cols):
+                target = np.array([(cols[0] + cols[-1]) / 2 * 4, (top + m.shape[0] * 0.11) * 4], np.float32)
+        return m, target
+
+    def close(self):
+        if self.seg is not None:
+            self.seg.close()
+            self.seg = None
 
 
-FACE_STEP = 4  # face position measured ~7 times a second outside the matte windows
+FACE0 = np.array([W / 2, H * 0.42], np.float32)  # where the camera centres before a person is found
+
+
+def face_path(targets):
+    """The camera's face position for every frame: eases 15% a frame toward each measured target, exactly as the
+    one-pass renderer did, but over the whole video, so parallel parts no longer restart from the frame centre."""
+    out = np.empty((len(targets), 2), np.float32)
+    face = FACE0
+    for k, tg in enumerate(targets):
+        if not np.isnan(tg[0]):
+            face = 0.85 * face + 0.15 * tg
+        out[k] = face
+    return out
 
 
 def matte_needed(t):
-    """Frames where the full person matte is drawn (plus a short lead-in so its smoothing has settled)."""
+    """Frames that draw the person matte: slams (words behind the speaker) and the invert glow (with a margin)."""
     for s in SLAMS:
-        if s["t0"] - 0.4 <= t < s["t1"] + 0.3:
+        if s["t0"] - 0.1 <= t < s["t1"] + 0.3:
             return True
     for tr in TRANS:
-        if tr["kind"] == "invert" and -0.4 <= t - tr["t"] < 0.2:
+        if tr["kind"] == "invert" and -0.1 <= t - tr["t"] < 0.2:
             return True
     return False
 
@@ -410,7 +439,8 @@ def hit_fx(img, t):
 
 BG0, BG1 = PAL["bg0"], PAL["bg1"]
 _g = np.linspace(0, 1, H, dtype=np.float32)[:, None, None]
-BACKDROP = (BG0 * (1 - _g) + BG1 * _g) * np.ones((1, W, 1), np.float32)
+# the hook backdrop is only ever used at 1/8 size: build the full gradient once, keep the small copy
+BACKDROP_SMALL = cv2.resize((BG0 * (1 - _g) + BG1 * _g) * np.ones((1, W, 1), np.float32), (W // 8, H // 8), interpolation=cv2.INTER_AREA)
 
 
 def rim(matte, lvl):
@@ -418,7 +448,8 @@ def rim(matte, lvl):
     m2 = cv2.resize(matte, (W // 2, H // 2), interpolation=cv2.INTER_AREA)
     inner = np.clip(m2 - cv2.GaussianBlur(m2, (0, 0), 2.5), 0, 1)
     glow = cv2.resize(cv2.GaussianBlur(np.clip(inner * 2.0, 0, 1), (0, 0), 2), (W, H), interpolation=cv2.INTER_LINEAR)
-    return (glow * 0.55 * lvl)[..., None] * PAL["rim"]
+    g = glow * 0.55 * lvl
+    return cv2.merge([g * PAL["rim"][0], g * PAL["rim"][1], g * PAL["rim"][2]])
 
 
 _CARD = {}
@@ -428,7 +459,7 @@ def card_layers(x0, x1, y0, y1, r):
     """Rounded card mask + its shadow/stroke factors; cached because the card is still for most of the hook."""
     key = (x0, x1, y0, y1, r)
     if key not in _CARD:
-        if len(_CARD) > 24:
+        if len(_CARD) > 2:  # the card only repeats while it is still; each entry is ~40 MB at 1080x1920
             _CARD.clear()
         card = np.zeros((H, W), np.uint8)
         cv2.rectangle(card, (x0 + r, y0), (x1 - r, y1), 255, -1)
@@ -462,7 +493,7 @@ def popout(base, matte, t, s, face):
     cm, F0, C0 = card_layers(int(W / 2 - sc * W / 2), int(W / 2 + sc * W / 2), int(y0), int(y0 + sc * (H - top_crop)), int(46 * sc))
     drift = 1 + 0.03 * clamp((t - a) / 2.5)
     # soft glow blobs on the backdrop (motion in every frame), built at 1/8 resolution
-    bd = cv2.resize(BACKDROP, (W // 8, H // 8), interpolation=cv2.INTER_AREA)
+    bd = BACKDROP_SMALL.copy()
     for i, col in enumerate((PAL["accent"], PAL["rim"])):
         cx = (W * (0.25 + 0.5 * i) + 60 * math.sin(t * 1.3 + i)) / 8
         cy = (H * (0.18 + 0.6 * i) + 40 * math.cos(t * 1.1 + i)) / 8
@@ -480,13 +511,15 @@ def popout(base, matte, t, s, face):
     place(out, shadow_of(sprite, 22, 0.6), W / 2 + 6, ty + 16, tsc, 0, clamp(u * 3) * (1 - u_out))
     place(out, sprite, W / 2, ty, tsc, 0, clamp(u * 3) * (1 - u_out), 9 * (1 - ease(u * 1.4)))
     # card shadow + stroke + footage, then the speaker over the card edge and over the words (one fused blend)
+    # (one-channel factors, then three-channel multiply/add with OpenCV's multi-core operations)
     pm = m * (1 - cm)
-    keep = (1 - pm)[..., None]
-    out = out * (F0[..., None] * keep) + C0 * keep + foot * (1 - (1 - cm) * (1 - pm))[..., None]
-    out = out + rim(m, 0.7)
+    keep = 1 - pm
+    out = cv2.add(cv2.add(cv2.multiply(out, ch3(F0 * keep)), cv2.multiply(C0, ch3(keep))),
+                  cv2.multiply(foot, ch3(1 - (1 - cm) * (1 - pm))))
+    out = cv2.add(out, rim(m, 0.7))
     # blend in/out with the plain footage at the edges of the window
     k = clamp((1 - sc) / 0.24)
-    return base * (1 - k) + out * k
+    return out if k >= 1 else cv2.addWeighted(base, 1 - k, out, k, 0)
 
 
 def front_slam(base, matte, t, s, face):
@@ -495,11 +528,13 @@ def front_slam(base, matte, t, s, face):
     u = (t - a) / 0.18
     v = clamp((t - b) / 0.16)
     lvl = clamp(u * 3) * (1 - v)
-    m = matte[..., None]
-    g = cv2.cvtColor(base, cv2.COLOR_BGR2GRAY)[..., None]
-    dim = (base * 0.45 + g * 0.55) * 0.42
-    out = base * (1 - lvl * (1 - m)) + dim * lvl * (1 - m)
-    out = out + rim(matte, lvl)
+    if lvl <= 0:
+        return base  # nothing of this slam is visible yet (or any more)
+    g = cv2.cvtColor(base, cv2.COLOR_BGR2GRAY)
+    dim = cv2.addWeighted(base, 0.45, ch3(g), 0.55, 0) * np.float32(0.42 * lvl)
+    bg = 1 - matte
+    out = cv2.add(cv2.multiply(base, ch3(1 - lvl * bg)), cv2.multiply(dim, ch3(bg)))
+    out = cv2.add(out, rim(matte, lvl))
     sprite = slam_sprite(s["text"], int(W * 0.9), "ink")
     sc = (1.8 - 0.8 * back_out(clamp(u))) * (1 + 0.04 * clamp((t - a) / 1.0)) * (1 + 0.5 * ease_in(v))
     y = H * 0.6
@@ -572,38 +607,113 @@ def flash_at(img, t):
 
 
 # ------------------------------------------------------------------ main loop
+#
+# Two passes, each split over parallel worker processes:
+#   1. track:  person matte on every frame (MediaPipe uses one core, so parts run side by side). Writes the face
+#              target of every frame and the small matte of the frames that draw it.
+#   2. render: the face path is eased over the whole video in one go, then the frames are composited in parts.
+# The picture is the same as the old one-pass renderer with one worker. With several workers it is better:
+# a part no longer starts its camera from the frame centre.
 
-def render_range(start, end, dst, tag=""):
-    """Render frames [start, end) to dst. A few frames before `start` are decoded to warm up matte smoothing."""
-    warm = min(start, 12)
-    first = start - warm
-    cf = 0x08000000 if sys.platform == "win32" else 0
+WARM = 24  # frames decoded before a track part so the matte smoothing (x0.35 a frame) has fully settled
+CF = 0x08000000 if sys.platform == "win32" else 0
+
+
+def decoder(first):
     seek = ["-ss", f"{first / FPS:.4f}"] if first else []
-    dec = subprocess.Popen([P["ffmpeg"], "-v", "error", *seek, "-i", P["input"], "-vf", f"scale={W}:{H},fps={FPS}", "-f", "rawvideo",
-                            "-pix_fmt", "bgr24", "-"], stdout=subprocess.PIPE, creationflags=cf)
-    enc = subprocess.Popen([P["ffmpeg"], "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W}x{H}", "-r", str(FPS),
-                            "-i", "-", "-c:v", "libx264", "-preset", P.get("preset", "veryfast"), "-crf", str(P.get("crf", 16)),
-                            "-pix_fmt", "yuv420p", "-threads", str(P.get("enc_threads", 0)), dst], stdin=subprocess.PIPE, creationflags=cf)
-    matte_fn = Matte(P.get("matte_model"))
+    return subprocess.Popen([P["ffmpeg"], "-v", "error", *seek, "-i", P["input"], "-vf", f"scale={W}:{H},fps={FPS}", "-f", "rawvideo",
+                             "-pix_fmt", "bgr24", "-"], stdout=subprocess.PIPE, creationflags=CF)
+
+
+def frames(dec, first, end):
     n = W * H * 3
     k = first
-    while k < end:
-        buf = dec.stdout.read(n)
-        if len(buf) < n:
-            break
-        raw = np.frombuffer(buf, np.uint8).reshape(H, W, 3)
-        t = k / FPS
-        need = matte_needed(t)
-        matte = matte_fn(raw, k, need)
-        if k < start:
+    try:
+        while k < end:
+            buf = dec.stdout.read(n)
+            if len(buf) < n:
+                break
+            yield k, np.frombuffer(buf, np.uint8).reshape(H, W, 3)
             k += 1
-            continue
-        face = matte_fn.face
+    finally:
+        dec.stdout.close()
+        dec.kill()
+        dec.wait()
+
+
+def _part_progress(tag, n):
+    print(f"PART_PROGRESS {tag} {n}", flush=True)
+
+
+def track_range(start, end, dst, tag="", progress=None):
+    """Pass 1 for frames [start, end): dst.npz (face targets, NaN = no person) + dst.masks (raw float32 small mattes)."""
+    first = start - min(start, WARM)
+    matte_fn = Matte(P.get("matte_model"))
+    targets = np.full((max(0, end - start), 2), np.nan, np.float32)
+    kept = []
+    with open(f"{dst}.masks", "wb") as fm:
+        for k, raw in frames(decoder(first), first, end):
+            mask, target = matte_fn.measure(raw, k)
+            if k < start:
+                continue
+            if target is not None:
+                targets[k - start] = target
+            if mask is not None and matte_needed(k / FPS):
+                fm.write(np.ascontiguousarray(mask, np.float32).tobytes())
+                kept.append(k)
+            if (k + 1 - start) % 10 == 0:
+                (progress or _part_progress)(tag, k + 1 - start)
+    matte_fn.close()
+    np.savez(f"{dst}.npz", targets=targets, kept=np.array(kept, np.int64))
+    return end - start
+
+
+class Track:
+    """Face path for the whole video + lookup of the small mattes written by the track parts."""
+
+    def __init__(self, parts, total):
+        targets, self.where = [], {}
+        for path in parts:
+            with np.load(f"{path}.npz") as d:
+                tg, kept = d["targets"], d["kept"]
+            targets.append(tg)
+            if len(kept):
+                mm = np.memmap(f"{path}.masks", np.float32, "r", shape=(len(kept), H // 4, W // 4))
+                for slot, k in enumerate(kept):
+                    self.where[int(k)] = (mm, slot)
+        t = np.concatenate(targets) if targets else np.zeros((0, 2), np.float32)
+        t = np.concatenate([t, np.full((max(0, total - len(t)), 2), np.nan, np.float32)])
+        self.faces = face_path(t)
+
+    def face(self, k):
+        return self.faces[min(k, len(self.faces) - 1)] if len(self.faces) else FACE0
+
+    def matte(self, k):
+        hit = self.where.get(k)
+        if hit is None:
+            return None
+        mm, slot = hit
+        return cv2.resize(np.array(mm[slot]), (W, H), interpolation=cv2.INTER_LINEAR)
+
+    def close(self):
+        self.where.clear()
+
+
+def render_range(start, end, dst, track, tag="", progress=None):
+    """Pass 2: composite frames [start, end) to dst."""
+    enc = subprocess.Popen([P["ffmpeg"], "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W}x{H}", "-r", str(FPS),
+                            "-i", "-", "-c:v", "libx264", "-preset", P.get("preset", "veryfast"), "-crf", str(P.get("crf", 16)),
+                            "-pix_fmt", "yuv420p", "-threads", str(P.get("enc_threads", 0)), dst], stdin=subprocess.PIPE, creationflags=CF)
+    done = 0
+    for k, raw in frames(decoder(start), start, end):
+        t = k / FPS
+        face = track.face(k)
+        m = track.matte(k)
         M, _ = camera(t, face)
         graded = cv2.LUT(grade_like(raw), LUT)
         frame = cv2.warpAffine(graded, M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
         frame = np.multiply(frame, np.float32(1 / 255), dtype=np.float32)
-        matte = cv2.warpAffine(matte, M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT) if need else ZERO_MATTE
+        matte = cv2.warpAffine(m, M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT) if m is not None else ZERO_MATTE
         fpos = M[:, :2] @ face + M[:, 2]
         img = draw_slams(frame, matte, t, fpos)
         draw_chips(img, t, fpos)
@@ -625,66 +735,110 @@ def render_range(start, end, dst, tag=""):
         img = hit_fx(img, t)
         img = bloom(np.ascontiguousarray(img, np.float32), P.get("bloom", 0.35))
         enc.stdin.write(finish(img, k).tobytes())
-        k += 1
-        if (k - start) % 10 == 0:
-            print(f"PART_PROGRESS {tag} {k - start}", flush=True)
-    dec.stdout.close()
-    dec.kill()
+        done = k + 1 - start
+        if done % 10 == 0:
+            (progress or _part_progress)(tag, done)
     enc.stdin.close()
     enc.wait()
-    return k - start
+    return done
 
 
-def main():
-    total = int(round(P["duration"] * FPS))
-    if "--part" in sys.argv:  # worker process
-        i = sys.argv.index("--part")
-        a, b, dst = int(sys.argv[i + 1]), int(sys.argv[i + 2]), sys.argv[i + 3]
-        done = render_range(a, b, dst, sys.argv[i + 4])
-        print(f"PART_DONE {done}", flush=True)
-        return
-    workers = max(1, min(int(P.get("workers", 1)), total // 45))
-    if workers == 1:
-        done = render_range(0, total, P["output"], "0")
-        print(f"STYLE_DONE {done}", flush=True)
-        return
+def split(total, workers, min_frames):
+    """Frame bounds for up to `workers` parts of at least `min_frames` frames."""
+    n = max(1, min(int(workers or 1), total // min_frames))
+    return [round(total * i / n) for i in range(n + 1)]
+
+
+def run_parts(flag, bounds, dsts, offset, grand, extra=()):
+    """Run one pass as parallel worker processes; their progress is summed into STYLE_PROGRESS lines."""
     import threading
 
-    out = Path(P["output"])
-    bounds = [round(total * i / workers) for i in range(workers + 1)]
-    parts = [out.with_name(f"{out.stem}.part{i}.mp4") for i in range(workers)]
-    progress = [0] * workers
+    n = len(bounds) - 1
+    progress = [0] * n
     lock = threading.Lock()
-    cf = (0x08000000 | 0x00004000) if sys.platform == "win32" else 0
+    cf = CF | (0x00004000 if sys.platform == "win32" else 0)  # below-normal priority
 
     def pump(i, proc):
         for line in proc.stdout:
             if line.startswith("PART_PROGRESS"):
                 with lock:
                     progress[i] = int(line.split()[2])
-                    print(f"STYLE_PROGRESS {sum(progress)} {total}", flush=True)
+                    print(f"STYLE_PROGRESS {offset + sum(progress)} {grand}", flush=True)
             elif line.strip() and not line.startswith(("PART_DONE", "INFO", "W0000", "WARNING")):
                 print(line.rstrip(), flush=True)
 
-    procs = [subprocess.Popen([sys.executable, "-E", "-P", __file__, sys.argv[1], "--part", str(bounds[i]), str(bounds[i + 1]),
-                               str(parts[i]), str(i)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                              encoding="utf-8", errors="replace", creationflags=cf) for i in range(workers)]
+    procs = [subprocess.Popen([sys.executable, "-E", "-P", __file__, sys.argv[1], flag, str(bounds[i]), str(bounds[i + 1]),
+                               str(dsts[i]), str(i), *extra], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                              encoding="utf-8", errors="replace", creationflags=cf) for i in range(n)]
     threads = [threading.Thread(target=pump, args=(i, pr), daemon=True) for i, pr in enumerate(procs)]
     for th in threads:
         th.start()
     codes = [pr.wait() for pr in procs]
     for th in threads:
         th.join(5)
-    if any(codes) or not all(pt.exists() for pt in parts):
+    if any(codes):
         print(f"STYLE_ERROR worker failed {codes}", flush=True)
         sys.exit(1)
+
+
+def main():
+    total = int(round(P["duration"] * FPS))
+    argv = sys.argv
+    if "--track" in argv:  # pass-1 worker: --track a b dst tag
+        i = argv.index("--track")
+        done = track_range(int(argv[i + 1]), int(argv[i + 2]), argv[i + 3], argv[i + 4])
+        print(f"PART_DONE {done}", flush=True)
+        return
+    if "--part" in argv:  # pass-2 worker: --part a b dst tag track_parts.json
+        i = argv.index("--part")
+        parts = json.loads(Path(argv[i + 5]).read_text(encoding="utf-8"))
+        track = Track(parts, total)
+        done = render_range(int(argv[i + 1]), int(argv[i + 2]), argv[i + 3], track, argv[i + 4])
+        track.close()
+        print(f"PART_DONE {done}", flush=True)
+        return
+    out = Path(P["output"])
+    grand = 2 * total
+
+    def say(base):
+        return lambda _tag, n: print(f"STYLE_PROGRESS {base + n} {grand}", flush=True)
+
+    tb = split(total, P.get("track_workers", P.get("workers", 1)), 90)
+    tparts = [str(out.with_name(f"{out.stem}.track{i}")) for i in range(len(tb) - 1)]
+    rb = split(total, P.get("workers", 1), 45)
+    parts = [out.with_name(f"{out.stem}.part{i}.mp4") for i in range(len(rb) - 1)]
+    listing = out.with_name(out.stem + ".track.json")
     lst = out.with_name(out.stem + ".parts.txt")
-    lst.write_text("".join(f"file '{pt.as_posix()}'\n" for pt in parts), encoding="utf-8")
-    subprocess.run([P["ffmpeg"], "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(out)],
-                   check=True, creationflags=cf)
-    for pt in [*parts, lst]:
-        pt.unlink(missing_ok=True)
-    print(f"STYLE_DONE {total}", flush=True)
+    try:
+        if len(tparts) == 1:
+            track_range(0, total, tparts[0], "0", say(0))
+        else:
+            run_parts("--track", tb, tparts, 0, grand)
+        if len(parts) == 1:
+            track = Track(tparts, total)
+            done = render_range(0, total, str(out), track, "0", say(total))
+            track.close()
+            del track
+        else:
+            listing.write_text(json.dumps(tparts), encoding="utf-8")
+            run_parts("--part", rb, parts, total, grand, (str(listing),))
+            if not all(pt.exists() for pt in parts):
+                print("STYLE_ERROR a part is missing", flush=True)
+                sys.exit(1)
+            lst.write_text("".join(f"file '{pt.as_posix()}'\n" for pt in parts), encoding="utf-8")
+            subprocess.run([P["ffmpeg"], "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(out)],
+                           check=True, creationflags=CF)
+            done = total
+    finally:
+        import gc
+
+        gc.collect()  # release the memory-mapped mattes before deleting their files (Windows locks mapped files)
+        for f in [*parts, lst, listing, *(Path(tp + ext) for tp in tparts for ext in (".npz", ".masks"))]:
+            try:
+                Path(f).unlink(missing_ok=True)
+            except OSError:
+                pass
+    print(f"STYLE_DONE {done}", flush=True)
 
 
 if __name__ == "__main__":
