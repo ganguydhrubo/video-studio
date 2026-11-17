@@ -228,9 +228,10 @@ class Plan(Base):
         with patch.object(setup, "whisper_cached", return_value=False):
             items = setup.plan(self.EMPTY)
         keys = [i["key"] for i in items]
-        for key in ("ffmpeg", "python", "node", "hyperframes", "blender", "whisper-model"):
+        for key in ("ffmpeg", "python", "node", "hyperframes", "whisper-model"):
             self.assertIn(key, keys)
         self.assertNotIn("ollama", keys)  # optional, off by default
+        self.assertNotIn("blender", keys)  # optional: only for 3D
         self.assertLess(keys.index("node"), keys.index("hyperframes"))
         for it in items:
             self.assertGreater(it["size"], 0, it["key"])
@@ -240,8 +241,8 @@ class Plan(Base):
 
     def test_skip_and_optional_extra(self):
         with patch.object(setup, "whisper_cached", return_value=True), patch.object(setup.shutil, "which", return_value=None):
-            keys = [i["key"] for i in setup.plan(self.EMPTY, skip=("blender",), extra=("ollama",))]
-        self.assertNotIn("blender", keys)
+            keys = [i["key"] for i in setup.plan(self.EMPTY, skip=("node",), extra=("ollama",))]
+        self.assertNotIn("node", keys)
         self.assertIn("ollama", keys)
 
     def test_ready_pc_needs_nothing(self):

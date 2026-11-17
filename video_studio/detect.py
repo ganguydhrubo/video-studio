@@ -24,6 +24,9 @@ HOME = Path.home()
 LOCAL = Path(os.environ.get("LOCALAPPDATA", HOME / "AppData" / "Local"))
 ROAMING = Path(os.environ.get("APPDATA", HOME / "AppData" / "Roaming"))
 
+# Fresh-PC test switch: see only Takebloom's own tools folder, as if nothing else were installed on this PC.
+PORTABLE_ONLY = os.environ.get("VIDEO_STUDIO_PORTABLE_ONLY") == "1"
+
 toolbox.activate()  # portable tools (if any) become visible to this process and its children only
 
 
@@ -90,7 +93,7 @@ def ffmpeg_path() -> Path | None:
     override = config.get("tools.ffmpeg")
     if override and Path(override).is_file():
         return Path(override)
-    return toolbox.ffmpeg() or which("ffmpeg", _ffmpeg_dirs())
+    return toolbox.ffmpeg() or (None if PORTABLE_ONLY else which("ffmpeg", _ffmpeg_dirs()))
 
 
 def ffprobe_path() -> Path | None:
@@ -102,7 +105,7 @@ def ffprobe_path() -> Path | None:
         sibling = ff.with_name("ffprobe" + ff.suffix)
         if sibling.exists():
             return sibling
-    return which("ffprobe", _ffmpeg_dirs())
+    return None if PORTABLE_ONLY else which("ffprobe", _ffmpeg_dirs())
 
 
 def blender_path() -> Path | None:
@@ -110,7 +113,7 @@ def blender_path() -> Path | None:
     if override and Path(override).is_file():
         return Path(override)
     portable = toolbox.blender()
-    if portable:
+    if portable or PORTABLE_ONLY:
         return portable
     on_path = which("blender")
     if on_path:
@@ -125,7 +128,7 @@ def node_path() -> Path | None:
     override = config.get("tools.node")
     if override and Path(override).is_file():
         return Path(override)
-    return toolbox.node() or which("node", [Path("C:/Program Files/nodejs")])
+    return toolbox.node() or (None if PORTABLE_ONLY else which("node", [Path("C:/Program Files/nodejs")]))
 
 
 def npx_path() -> Path | None:
@@ -135,7 +138,7 @@ def npx_path() -> Path | None:
             candidate = node.parent / name
             if candidate.exists():
                 return candidate
-    return which("npx.cmd") or which("npx")
+    return None if PORTABLE_ONLY else (which("npx.cmd") or which("npx"))
 
 
 def system_python() -> Path | None:
@@ -143,7 +146,7 @@ def system_python() -> Path | None:
 
     Takebloom's private Python (made by setup, with every helper installed) always comes first."""
     private = toolbox.private_python()
-    if private:
+    if private or PORTABLE_ONLY:
         return private
     if not FROZEN:
         return Path(sys.executable)
@@ -305,8 +308,8 @@ def check_whisper() -> ToolInfo:
     info = ToolInfo("whisper", "faster-whisper", "transcribe / align user-recorded voiceovers", False)
     py = system_python()
     if not py:
-        info.problem = "no system Python found"
-        info.hint = "Install Python 3.10+ from python.org"
+        info.problem = "no Python for the AI helpers yet"
+        info.hint = "video-studio setup (it installs a private Python for Takebloom)"
         return info
     out = _probe([str(py), "-c", "import faster_whisper,sys;print('FW',faster_whisper.__version__)"], timeout=60)
     m = re.search(r"FW (\S+)", out)

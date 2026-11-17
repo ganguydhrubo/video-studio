@@ -475,6 +475,8 @@ def _base_python_for_fallback() -> Path | None:
     """A Python 3.10+ already on this PC (or just installed by winget) to build the private venv from."""
     import glob
 
+    if os.environ.get("VIDEO_STUDIO_PORTABLE_ONLY") == "1":
+        return None
     cands = [shutil.which("python"), shutil.which("py")]
     local = os.environ.get("LOCALAPPDATA", "")
     cands += sorted(glob.glob(os.path.join(local, "Programs", "Python", "Python31*", "python.exe")), reverse=True)

@@ -832,9 +832,10 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("setup", help="first run: scan this PC, install everything (asks once), explain what it can edit")
     s.add_argument("--yes", action="store_true", help="approve the install without asking")
     s.add_argument("--report", action="store_true", help="only scan and explain; install nothing")
-    s.add_argument("--skip", nargs="*", default=[], help="leave these out of the plan, e.g. --skip blender")
-    s.add_argument("--with", dest="extra", nargs="*", default=[], choices=["ollama"],
-                   help="also install optional items: ollama (offline AI editor, about 3 GB)")
+    s.add_argument("--skip", nargs="*", default=[], help="leave these out of the plan, e.g. --skip hyperframes")
+    s.add_argument("--with", dest="extra", nargs="*", default=[], choices=["blender", "ollama", "speech-large"],
+                   help="also install optional items: blender (3D, 406 MB), ollama (offline AI editor, about 3 GB), "
+                        "speech-large (sharper speech model, 1.6 GB)")
     s.set_defaults(func=lambda a: __import__("video_studio.setup", fromlist=["run_setup"]).run_setup(
         a.yes, a.report, tuple(a.skip), tuple(a.extra)))
 

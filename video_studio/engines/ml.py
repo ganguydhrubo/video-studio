@@ -71,15 +71,32 @@ def best_whisper_model(requested: str = "auto") -> str:
     """Pick the most accurate faster-whisper model already on disk (no surprise downloads)."""
     if requested and requested != "auto":
         return requested
-    hub = Path.home() / ".cache" / "huggingface" / "hub"
+    hub = hf_hub()
     for name, folder in (("large-v3-turbo", "models--mobiuslabsgmbh--faster-whisper-large-v3-turbo"),
                          ("large-v3", "models--Systran--faster-whisper-large-v3"),
                          ("medium", "models--Systran--faster-whisper-medium"),
                          ("small", "models--Systran--faster-whisper-small"),
                          ("base", "models--Systran--faster-whisper-base")):
-        if (hub / folder).exists():
+        if model_on_disk(hub / folder):
             return name
     return "small"
+
+
+def hf_hub() -> Path:
+    """Where faster-whisper keeps its models: the Hugging Face cache (HF_HUB_CACHE / HF_HOME are honoured)."""
+    import os
+
+    if os.environ.get("HF_HUB_CACHE"):
+        return Path(os.environ["HF_HUB_CACHE"])
+    return Path(os.environ.get("HF_HOME") or (Path.home() / ".cache" / "huggingface")) / "hub"
+
+
+def model_on_disk(folder: Path) -> bool:
+    """A model download that finished (its model.bin is in a snapshot), not just a started one."""
+    try:
+        return any(folder.glob("snapshots/*/model.bin"))
+    except OSError:
+        return False
 
 
 def transcribe(audio: Path, model: str = "small", language: str = "") -> dict:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import platform
 import shutil
 import subprocess
@@ -18,12 +17,14 @@ MODULES = ("faster_whisper", "kokoro_onnx", "soundfile", "noisereduce", "scipy",
 PIP_PACKAGES = ["faster-whisper", "kokoro-onnx", "soundfile", "noisereduce", "scipy", "opencv-python", "mediapipe", "librosa"]
 MODELS = {
     "kokoro-v1.0.int8.onnx": ("https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.int8.onnx",
-                              "kokoro", "88 MB", "natural voiceover (Apache-2.0)"),
+                              "kokoro", "92 MB", "Kokoro voice model (offline English voice-overs)"),
     "voices-v1.0.bin": ("https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin",
-                        "kokoro", "27 MB", "voices for the narrator"),
+                        "kokoro", "28 MB", "Kokoro voices"),
     "selfie_multiclass.tflite": ("https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite",
-                                 "mediapipe", "16 MB", "person cut-out for words behind you (Apache-2.0)"),
+                                 "mediapipe", "16 MB", "MediaPipe cut-out model (words behind you)"),
 }
+# Exact sizes of the fixed-release files (from the GitHub release, 17 Nov 2026): a short or cut download is refused.
+MODEL_BYTES = {"kokoro-v1.0.int8.onnx": 92_361_271, "voices-v1.0.bin": 28_214_398}
 # Pinned SHA-256 for fixed-release model files (checked on download). The selfie model URL is 'latest', so not pinned.
 MODEL_SHA: dict[str, str] = {}
 
@@ -69,6 +70,7 @@ def scan() -> dict:
     py = detect.system_python()
     pkgs = _modules(py, MODULES) if py else {}
     models = {name: (ml.models_dir() / sub / name).exists() for name, (_, sub, _, _) in MODELS.items()}
+    speech = ml.best_whisper_model("auto") if whisper_cached() else ""
     try:
         free = shutil.disk_usage(Path.home()).free
     except OSError:
@@ -77,6 +79,7 @@ def scan() -> dict:
         "os": f"{platform.system()} {platform.release()}", "cpu": _cpu_name(), "threads": resources.cpu_count(),
         "ram_gb": round(mem.total / 1024**3, 1), "free_disk_gb": round(free / 1024**3, 1),
         "gpus": resources.gpus(), "nvidia": _nvidia(), "python": str(py or ""), "tools": tools, "packages": pkgs, "models": models,
+        "speech_model": speech,
     }
 
 
@@ -106,24 +109,22 @@ def report(s: dict) -> dict:
                    "clearly separated from the background).")
     else:
         limits.append("Words-behind-you effects are off until the cut-out model is installed (setup does it).")
-    if s["packages"].get("faster_whisper"):
-        model = "large-v3-turbo" if ram >= 12 else ("small" if ram >= 6 else "base")
-        can.append(f"Understand speech offline with the '{model}' speech model (picked for your {ram:.0f} GB memory).")
+    speech = s.get("speech_model", "")
+    if s["packages"].get("faster_whisper") and speech:
+        can.append(f"Understand speech offline with the '{speech}' speech model.")
+        if ram >= 12 and "large" not in speech:
+            tips.append(f"For sharper Hindi and Bengali captions, add the bigger speech model "
+                        f"({_mb(WHISPER_SIZES['large-v3-turbo'])}): video-studio setup --with speech-large")
     else:
         limits.append("Speech understanding is off until the speech model is installed (setup does it).")
     if s["models"].get("kokoro-v1.0.int8.onnx"):
-        can.append("Turn a written script into a narrated video with a natural offline voice.")
+        can.append("Make an English voice-over version of a finished edit with a natural offline voice.")
     if ok("blender"):
         if nv and nv["vram_gb"] >= 6:
             can.append(f"Render 3D titles and objects fast on your {nv['name']}.")
         else:
             limits.append("3D scenes are SLOW on this computer (no strong graphics card): about 20-40 seconds per frame. "
                           "Use them for short 2-5 second moments, or pick 'Draft' quality.")
-    if nv and nv["vram_gb"] >= 12:
-        can.append(f"Your {nv['name']} ({nv['vram_gb']} GB) is strong enough for AI-generated video clips (advanced add-on).")
-    else:
-        limits.append("It cannot invent new footage with AI (text-to-video). That needs an NVIDIA graphics card with "
-                      "12 GB+ memory. Everything else works with your own clips, photos and 3D.")
     if ram < 8:
         limits.append(f"Only {ram:.0f} GB memory: keep clips under 3 minutes and close other apps while rendering.")
     elif ram < 16:
@@ -152,7 +153,11 @@ def print_report(s: dict, r: dict) -> None:
 # Sizes are what each step downloads (measured on the 1.9.0 fresh-folder test); licences are shown before anything runs.
 PYTHON_SIZE = 650_000_000      # uv + Python 3.12 + the helpers above
 HYPERFRAMES_SIZE = 260_000_000  # npm package + its headless browser
-WHISPER_SIZE = 800_000_000
+# faster-whisper model files on Hugging Face (model.bin + tokenizer + vocabulary), checked 17 Nov 2026
+WHISPER_SIZES = {"small": 486_215_847, "large-v3-turbo": 1_620_000_000}
+WHISPER_SIZE = WHISPER_SIZES["small"]
+# Optional items: never in the default plan (Blender is only for 3D, Ollama and the big speech model are large).
+EXTRAS = ("blender", "ollama", "speech-large")
 
 
 def _mb(n: int) -> str:
@@ -190,18 +195,19 @@ def plan(s: dict, skip: tuple[str, ...] = (), extra: tuple[str, ...] = ()) -> li
     for name, (url, sub, size, desc) in MODELS.items():
         if not (s.get("models") or {}).get(name):
             items.append({"kind": "model", "key": name, "url": url, "dest": str(ml.models_dir() / sub / name),
-                          "desc": desc, "size": _model_size(size), "license": "Apache-2.0"})
+                          "desc": desc, "size": MODEL_BYTES.get(name) or _model_size(size), "license": "Apache-2.0"})
     if not ok("node"):
         portable("node", f"{P['node'].label}: runs HyperFrames")
     if not ok("hyperframes"):
         items.append({"kind": "hyperframes", "key": "hyperframes", "size": HYPERFRAMES_SIZE, "license": "Apache-2.0",
                       "desc": f"HyperFrames {detect.HYPERFRAMES_VERSION} and its browser: timeline, motion titles"})
-    if not ok("blender"):
-        portable("blender", f"{P['blender'].label}: 3D titles and objects")
-    if not whisper_cached():
-        items.append({"kind": "whisper", "key": "whisper-model", "size": WHISPER_SIZE, "license": "MIT",
-                      "desc": "Speech model (understands what you say, offline)",
-                      "model": "large-v3-turbo" if s.get("ram_gb", 0) >= 12 else "small"})
+    if "blender" in extra and not ok("blender"):
+        portable("blender", f"{P['blender'].label}: 3D titles and objects (optional)")
+    large = "speech-large" in extra
+    if not whisper_cached(large):
+        model = "large-v3-turbo" if large else "small"
+        items.append({"kind": "whisper", "key": "whisper-model", "size": WHISPER_SIZES[model], "license": "MIT",
+                      "desc": f"Speech model '{model}' (understands what you say, offline)", "model": model})
     if "ollama" in extra and not (toolbox.ollama() or shutil.which("ollama")):
         items.append({"kind": "portable", "key": "ollama", "size": P["ollama"].size + 1_400_000_000,
                       "license": "MIT, Apache-2.0",
@@ -209,13 +215,13 @@ def plan(s: dict, skip: tuple[str, ...] = (), extra: tuple[str, ...] = ()) -> li
     return [i for i in items if i["key"] not in skip]
 
 
-def whisper_cached() -> bool:
-    """A usable speech model is already on disk (large-v3-turbo or small, or larger)."""
-    hub = Path(os.environ.get("HF_HOME") or (Path.home() / ".cache" / "huggingface")) / "hub"
-    return any((hub / f).exists() for f in ("models--mobiuslabsgmbh--faster-whisper-large-v3-turbo",
-                                             "models--Systran--faster-whisper-large-v3",
-                                             "models--Systran--faster-whisper-medium",
-                                             "models--Systran--faster-whisper-small"))
+def whisper_cached(large: bool = False) -> bool:
+    """A usable speech model is already on disk: 'small' or better (or a large one, when `large` is asked for)."""
+    hub = ml.hf_hub()
+    names = ["models--mobiuslabsgmbh--faster-whisper-large-v3-turbo", "models--Systran--faster-whisper-large-v3"]
+    if not large:
+        names += ["models--Systran--faster-whisper-medium", "models--Systran--faster-whisper-small"]
+    return any(ml.model_on_disk(hub / f) for f in names)
 
 
 def missing(s: dict) -> list[dict]:
@@ -263,7 +269,7 @@ def install_item(it: dict) -> bool:
         if kind == "model":
             dest = Path(it["dest"])
             console.step(f"Downloading {dest.name} ({_mb(it.get('size', 0))})")
-            toolbox.download([it["url"]], dest, MODEL_SHA.get(dest.name, ""), label=dest.name)
+            toolbox.download([it["url"]], dest, MODEL_SHA.get(dest.name, ""), MODEL_BYTES.get(dest.name, 0), label=dest.name)
             return True
         if kind == "whisper":
             py = detect.system_python()
