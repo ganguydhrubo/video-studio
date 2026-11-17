@@ -241,5 +241,87 @@ class Karaoke(unittest.TestCase):
             self.assertAlmostEqual(s, w["start"], delta=0.006)
 
 
+
+class BatchedHelper(unittest.TestCase):
+    """helpers/ml_helper.py transcribe with a fake faster-whisper: batched mode keeps every word and splits the
+    30 s pieces back into sentences; timestamps are never switched on (that drops sentences in faster-whisper 1.2)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("ml_helper_under_test", str(ml.HELPER))
+        cls.h = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.h)
+
+    @staticmethod
+    def W(word, s, e, p=0.9):
+        return mock.Mock(word=word, start=s, end=e, probability=p)
+
+    def _fake_fw(self, seen):
+        W = self.W
+        piece = [W(" Hello", 0.5, 0.8), W(" there.", 0.8, 1.2), W(" This", 2.5, 2.7), W(" is", 2.7, 2.8),
+                 W(" one", 2.8, 3.0), W(" piece", 3.0, 3.4), W(" and", 4.6, 4.8), W(" more", 4.8, 5.2)]
+
+        def seg(words):
+            return mock.Mock(start=words[0].start, end=words[-1].end, text="".join(w.word for w in words), words=words,
+                             no_speech_prob=0.01, compression_ratio=1.2)
+
+        info = mock.Mock(language="en", duration=6.0)
+
+        class Model:
+            def __init__(self, *a, **k):
+                pass
+
+            def transcribe(self, pcm, **opts):
+                seen.setdefault("plain", []).append(opts)
+                return iter([seg(piece[:2]), seg(piece[2:6]), seg(piece[6:])]), info
+
+        class Batched:
+            def __init__(self, model):
+                pass
+
+            def transcribe(self, pcm, **opts):
+                seen.setdefault("batched", []).append(opts)
+                return iter([seg(piece)]), info  # one segment per 30 s piece
+
+        return mock.Mock(WhisperModel=Model, BatchedInferencePipeline=Batched)
+
+    def _run(self, batch):
+        import argparse
+        import sys
+
+        seen = {}
+        with tempfile.TemporaryDirectory() as d:
+            wav = write_wav(Path(d) / "a.wav", np.zeros(16000 * 6, dtype="float32"), 16000)
+            out = Path(d) / "out.json"
+            args = argparse.Namespace(audio=str(wav), out=str(out), model="small", threads=4, language="en", vocab="",
+                                      translate=1, translate_model="small", batch=batch)
+            with mock.patch.dict(sys.modules, {"faster_whisper": self._fake_fw(seen)}):
+                self.h.transcribe(args)
+            return json.loads(out.read_text(encoding="utf-8")), seen
+
+    def test_batched_keeps_every_word_and_splits_sentences(self):
+        plain, _ = self._run(0)
+        batched, seen = self._run(8)
+        self.assertEqual([w["text"] for w in batched["words"]], [w["text"] for w in plain["words"]])
+        self.assertEqual(batched["batch"], 8)
+        self.assertEqual(seen["batched"][0]["batch_size"], 8)
+        self.assertNotIn("without_timestamps", seen["batched"][0])
+        self.assertEqual([s["text"] for s in batched["segments"]], ["Hello there.", "This is one piece", "and more"])
+
+    def test_default_is_one_window_after_another(self):
+        data, seen = self._run(0)
+        self.assertEqual(data["batch"], 0)
+        self.assertNotIn("batched", seen)
+        self.assertIn("seconds", data)
+
+    def test_sentences_split_on_stops_pauses_and_length(self):
+        W = self.W
+        words = [W(" a.", 0, 0.2), W(" b", 0.3, 0.4), W(" c", 1.5, 1.6)] + [W(" x", 2 + i * 0.1, 2.05 + i * 0.1) for i in range(5)]
+        parts = self.h._sentences(words, max_words=3)
+        self.assertEqual([len(p) for p in parts], [1, 1, 3, 3])
+
+
 if __name__ == "__main__":
     unittest.main()
