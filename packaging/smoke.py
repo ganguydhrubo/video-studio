@@ -36,6 +36,8 @@ def main():
                 assert b'/api/brief/interpret' in response.read()
             assert 'id="mPhotos"' in html and 'id="machineCard"' in html and 'id="updateCard"' in html
             assert '/autopilot.js' in html and '/understand.js' in html and 'id="mGenerate"' not in html
+            with opener.open('http://127.0.0.1:7894/timeline.js') as response:
+                assert b'/api/timeline/render' in response.read() and '/timeline.js' in html
     assert 'function wireShare' in html and 'id="tDownload"' in html and 'function fixPreview' in html
             with opener.open('http://127.0.0.1:7894/api/library') as response:
                 lib=json.load(response)

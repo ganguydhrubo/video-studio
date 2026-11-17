@@ -27,7 +27,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from video_studio import __version__, autopilot, config, memory
 from video_studio.project import Project, slug
-from video_studio.util import FROZEN, app_data_dir, console, kill_tree, read_json, resource_path, write_json
+from video_studio.util import FROZEN, ToolError, app_data_dir, console, kill_tree, read_json, resource_path, write_json
 
 TOKEN = secrets.token_urlsafe(24)
 JOBS: dict[str, dict] = {}
@@ -485,7 +485,7 @@ class Handler(BaseHTTPRequestHandler):
             self._file(resource_path("assets", "fonts", "InstrumentSerif-Italic.ttf"))
         elif url.path == "/brief-assistant.js":
             self._file(resource_path("studio_ui", "brief-assistant.js"))
-        elif url.path in ("/autopilot.js", "/understand.js"):
+        elif url.path in ("/autopilot.js", "/understand.js", "/timeline.js"):
             self._file(resource_path("studio_ui", url.path.lstrip("/")))
         elif url.path == "/api/health":
             self._json({"app": "VideoStudio", "version": __version__, "pid": os.getpid()})
@@ -501,6 +501,9 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path == "/api/project":
             s = project_summary(Path(q.get("root", [""])[0]))
             self._json(s or {"error": "not found"}, 200 if s else 404)
+        elif url.path == "/api/timeline":   # timeline: the edit as a HyperFrames composition (timeline.py)
+            result = timeline_get(q.get("root", [""])[0])
+            self._json(result, 400 if result.get("error") else 200)
         elif url.path == "/api/doctor":
             self._json(doctor())
         elif url.path == "/api/ai":
@@ -620,6 +623,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(result)
         if url.path == "/api/refine":
             return self._json(refine(body))
+        if url.path in ("/api/timeline", "/api/timeline/render"):
+            result = timeline_post(url.path.endswith("/render"), body)
+            return self._json(result, 400 if result.get("error") else 200)
         if url.path == "/api/ai/login":
             return self._json(ai_login(str(body.get("key", ""))))
         if url.path == "/api/ai/install":
@@ -1133,6 +1139,44 @@ def refine(body: dict) -> dict:
     proj.save(data)
     stage = action["from"] if data.get("kind") == "edit" else {"plan": "analyze", "render": "produce"}[action["from"]]
     job = Job(data.get("kind", "edit"), ["resume", "--from", stage, "--project", str(root)], root, data["name"] + " (refine)")
+    JOBS[job.id] = job
+    job.start()
+    return {"job": job.id, "root": str(root)}
+
+
+# ---------------------------------------------------------------- timeline (video_studio/timeline.py, studio_ui/timeline.js)
+
+def timeline_get(raw_root: str) -> dict:
+    from video_studio import timeline
+
+    root = _project_root(raw_root)
+    if not root:
+        return {"error": "That project could not be found."}
+    try:
+        return timeline.api_get(root)
+    except ToolError as exc:
+        return {"error": str(exc)}
+
+
+def timeline_post(make_film: bool, body: dict) -> dict:
+    """Save the person's timeline, or make the film again from it (one job per project at a time)."""
+    from video_studio import timeline
+
+    root = _project_root(str(body.get("root", "")))
+    if not root:
+        return {"error": "That project could not be found."}
+    for running in list(JOBS.values()):
+        if running.root == root and running.status in ("running", "stopping"):
+            return {"error": "This project is being edited right now. Wait for it to finish."} if not make_film else                 {"job": running.id, "root": str(root)}
+    try:
+        if not make_film:
+            return timeline.api_save(root, body.get("model") or {})
+        if body.get("model"):
+            timeline.api_save(root, body["model"])
+    except ToolError as exc:
+        return {"error": str(exc)}
+    data = read_json(root / "project.json", {}) or {}
+    job = Job("edit", ["timeline", "render", "--project", str(root)], root, str(data.get("name", "Edit")) + " (your timeline)")
     JOBS[job.id] = job
     job.start()
     return {"job": job.id, "root": str(root)}
