@@ -18,7 +18,10 @@ def assemble_video(clips: list[Path], durations: list[float], transitions: list[
         args += ["-i", str(c)]
     ov_index = len(clips)
     for ov in overlays or []:
-        args += ["-loop", "1", "-t", f"{ov['end'] + 0.5:.3f}", "-i", str(ov["png"])]
+        if ov.get("frames"):   # a transparent PNG sequence (motion.py), placed at its own box and time
+            args += ["-framerate", str(ov.get("fps", fps)), "-start_number", "1", "-i", str(Path(ov["frames"]) / "frame_%06d.png")]
+        else:
+            args += ["-loop", "1", "-t", f"{ov['end'] + 0.5:.3f}", "-i", str(ov["png"])]
     parts = []
     for i in range(len(clips)):
         parts.append(f"[{i}:v]fps={fps},scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,"
@@ -32,7 +35,14 @@ def assemble_video(clips: list[Path], durations: list[float], transitions: list[
         cur = f"x{i}"
     for k, ov in enumerate(overlays or []):
         idx = ov_index + k
-        fade = f"fade=t=in:st={ov['start']:.2f}:d=0.25:alpha=1,fade=t=out:st={max(ov['start'], ov['end'] - 0.25):.2f}:d=0.25:alpha=1"
+        if ov.get("frames"):
+            size = f"scale={ov['w']}:{ov['h']}:flags=bicubic," if ov.get("w") else ""
+            parts.append(f"[{idx}:v]format=rgba,{size}setpts=PTS-STARTPTS+{ov['start']:.3f}/TB[ov{k}]")
+            parts.append(f"[{cur}][ov{k}]overlay={int(ov.get('x', 0))}:{int(ov.get('y', 0))}:eof_action=pass:"
+                         f"enable='between(t,{ov['start']:.3f},{ov['end']:.3f})'[o{k}]")
+            cur = f"o{k}"
+            continue
+        fade =f"fade=t=in:st={ov['start']:.2f}:d=0.25:alpha=1,fade=t=out:st={max(ov['start'], ov['end'] - 0.25):.2f}:d=0.25:alpha=1"
         parts.append(f"[{idx}:v]format=rgba,{fade}[ov{k}]")
         parts.append(f"[{cur}][ov{k}]overlay=0:0:enable='between(t,{ov['start']:.2f},{ov['end']:.2f})'[o{k}]")
         cur = f"o{k}"

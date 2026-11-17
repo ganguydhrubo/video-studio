@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width={{W}}, height={{H}}">
+{{HEAD}}
+<style>
+html, body { margin: 0; background: transparent; }
+#root { position: relative; width: {{W}}px; height: {{H}}px; overflow: hidden; background: transparent; }
+.clip { position: absolute; inset: 0; }
+.stage { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center;
+  text-align: center; padding: 0 var(--pad); box-sizing: border-box; gap: calc(var(--size) * .22); }
+.bar { display: block; width: calc(var(--size) * 1.6); height: max(5px, calc(var(--size) * .08)); border-radius: 99px;
+  background: var(--accent); transform-origin: center; }
+h1 { margin: 0; font-family: var(--font); font-size: var(--size); line-height: 1.02; font-weight: 800; color: var(--ink);
+  letter-spacing: var(--track); max-width: 100%; text-wrap: balance; text-shadow: var(--shadow); }
+h1 .w { display: inline-block; }
+.sub { margin: 0; font-family: var(--font2); font-size: calc(var(--size) * .34); color: var(--muted); letter-spacing: .04em;
+  text-shadow: 0 2px 12px rgba(0,0,0,.55); }
+.sub.empty { display: none; }
+.gold h1 { background: linear-gradient(100deg, #8a5a12 0%, #ffd77a 28%, #fff4d1 42%, #e2a93b 58%, #8a5a12 100%);
+  background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,.55)); text-shadow: none; }
+.elegant h1 { font-weight: 400; font-style: italic; }
+.elegant .bar { height: 2px; width: calc(var(--size) * 3); }
+</style></head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-width="{{W}}" data-height="{{H}}" data-duration="{{DUR}}" data-fps="{{FPS}}">
+  <section class="clip" id="scene" data-start="0" data-duration="{{DUR}}" data-track-index="0">
+    <div class="stage" id="stage">
+      <span class="bar" id="bar"></span>
+      <h1 id="hl" data-tb="title" data-words></h1>
+      <p class="sub" id="sub" data-tb="sub"></p>
+    </div>
+  </section>
+</div>
+<script>
+TB.fill();
+document.getElementById("stage").classList.add(TB.style);
+const D = {{DUR}};
+const tl = gsap.timeline({ paused: true });
+if (TB.style === "elegant") {
+  tl.from("#bar", { scaleX: 0, opacity: 0, duration: 0.9, ease: "power2.out" }, 0);
+  tl.from("#hl .w", { opacity: 0, y: 18, duration: 0.9, ease: "power2.out", stagger: 0.12 }, 0.15);
+  tl.from("#hl", { letterSpacing: "0.12em", duration: 1.6, ease: "power2.out" }, 0.1);
+} else {
+  tl.from("#bar", { scaleX: 0, duration: 0.45, ease: "power3.out" }, 0.02);
+  tl.from("#hl .w", { yPercent: 115, opacity: 0, rotation: 5, duration: 0.6, ease: "back.out(1.6)", stagger: 0.07 }, 0.1);
+}
+tl.from("#sub", { y: 24, opacity: 0, duration: 0.5, ease: "power2.out" }, 0.5);
+if (TB.style === "neon") {   // a sign switching on: fixed flicker steps, then a steady hum of glow
+  [[0.12, 0.25], [0.18, 1], [0.24, 0.4], [0.3, 1], [0.52, 0.65], [0.56, 1]].forEach(([t, o]) => tl.set("#hl", { opacity: o }, t));
+  tl.fromTo("#hl", { textShadow: "0 0 6px var(--glow), 0 0 18px var(--glow), 0 0 42px var(--glow2)" },
+    { textShadow: "0 0 10px var(--glow), 0 0 30px var(--glow), 0 0 70px var(--glow2)", duration: 1.1, ease: "sine.inOut", yoyo: true, repeat: 2 }, 0.6);
+}
+if (TB.style === "gold") tl.fromTo("#hl", { backgroundPosition: "100% 0" }, { backgroundPosition: "0% 0", duration: 2.2, ease: "sine.inOut" }, 0.2);
+tl.to("#stage", { opacity: 0, y: -30, duration: 0.4, ease: "power2.in" }, D - 0.45);
+window.__timelines["main"] = tl;
+TB.whenReady(() => TB.fit(document.getElementById("hl"), {{W}} * 0.9, {{H}} * 0.72));
+</script>
+</body></html>

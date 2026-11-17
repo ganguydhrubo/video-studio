@@ -44,7 +44,9 @@ RULES: list[tuple[str, str, object, str]] = [
     (r"\b(sepia)\b", "grade", "sepia", "Colour: sepia"),
     (r"\b(warm (?:look|tone|colou?rs?|grade)|golden hour|golden (?:look|tone))\b", "grade", "golden", "Colour: warm golden"),
     (r"\b(cool (?:look|tone|colou?rs?)|cold (?:look|tone)|blue tone|night look)\b", "grade", "cool_night", "Colour: cool"),
-    (r"\b(cyberpunk|neon)\b", "grade", "cyberpunk", "Colour: neon cyberpunk"),
+    # "neon" in front of a graphic ("neon lower third", "neon title") is that graphic's style, not the film's colour
+    (r"\bcyberpunk\b|\bneon\b(?! (?:lower|title|text|name|sign|glow|3d|end|outro|intro|tag|card|callouts?|words?|letters?|heading))",
+     "grade", "cyberpunk", "Colour: neon cyberpunk"),
     (r"\b(pastel|soft colou?rs?|dreamy)\b", "grade", "pastel", "Colour: soft pastel"),
     (r"\b(vivid|vibrant|colou?rful|punchy colou?rs?|saturated)\b", "grade", "vivid", "Colour: vivid"),
     (r"\b(matte|faded|film fade)\b", "grade", "matte", "Colour: matte film"),
@@ -60,7 +62,7 @@ RULES: list[tuple[str, str, object, str]] = [
     (r"\b(bold (?:edit|style|look|effects)|dramatic|impactful)\b", "fx", "bold", "Effects: bold"),
     (r"\b(clean (?:look|edit|style)|professional|corporate|minimal|subtle)\b", "fx", "clean", "Effects: clean"),
     (r"\b(no motion|static|steady frame|no zoom)\b", "motion", "subtle", "Motion: very little"),
-    (r"\b(lots of motion|zooms?|zoom ins?|camera moves?|dynamic|shake|movement|(?<!slow )motion)\b", "motion", "dynamic", "Motion: zooms and camera moves"),
+    (r"\b(lots of motion|zooms?|zoom ins?|camera moves?|dynamic|shake|movement|(?<!slow )motion(?! graphics?| titles?| text))\b", "motion", "dynamic", "Motion: zooms and camera moves"),
     (r"\b(maximum motion|crazy motion|extreme motion)\b", "motion", "maximal", "Motion: maximum"),
     # transitions
     (r"\b(glitch)\b", "transition", "glitch", "Transitions: glitch"),
@@ -91,8 +93,9 @@ RULES: list[tuple[str, str, object, str]] = [
 
 # Things people ask for that an edit of their own footage cannot do. Said plainly, never silently skipped.
 CANNOT: list[tuple[str, str]] = [
-    (r"\b3d\b|\bthree[- ]d\b", "3D objects and 3D text are not added to edits of your own footage yet. "
-                              "Your film gets motion titles, zooms and effects instead."),
+    (r"\b(?:3d|three[- ]d) (?:scenes?|world|environment|model of|version of|avatars?|characters?|animation of me)\b|"
+     r"\b(?:turn|convert|make) (?:my |the |this )?(?:video|footage|clips?|face|room) (?:into|in|to) (?:3d|three[- ]d)\b",
+     "3D scenes built from your footage are not possible. 3D titles and simple 3D objects can be added on top of it."),
     (r"\b(ai[- ]generated|generate (?:a |new )?(?:video|clip|scene|footage|image)s?|text to video|image to video|avatars?|create (?:new )?(?:scenes?|footage|clips?))\b",
      "Takebloom does not create new footage. It edits the videos and pictures you give it."),
     (r"\b(stock (?:footage|video|clips?)|download (?:clips?|videos?|footage))\b",
@@ -131,13 +134,127 @@ def understand(brief: str) -> dict:
     if intent.get("hook_seconds"):
         said.append(f"Opening hook of {intent['hook_seconds']:g} seconds (this does not shorten the film)")
     cannot = [msg for pattern, msg in CANNOT if re.search(pattern, text)]
+    wish = motion_wishes(brief)
+    if wish["off"]:
+        options["graphics"] = "off"
+    elif wish["kinds"]:
+        options["graphics"] = ",".join(wish["kinds"])
+    said += wish["said"]
     return {"options": options, "understood": said, "cannot": cannot, "questions": intent.get("questions", []),
             "target_seconds": intent.get("target_seconds")}
 
 
+# ------------------------------------------------------------------ motion graphics and 3D (rendered by motion.py)
+
+# (pattern, kind, what to say). Every match adds that piece; one title at most (a 3D title replaces the flat one).
+MOTION_RULES: list[tuple[str, str, str]] = [
+    (r"\b(?:3d|three[- ]d) (?:title|text|heading|name|words?|letters?|typography|intro)\b|"
+     r"\b(?:title|text|name|heading) in (?:3d|three[- ]d)\b|\b(?:spinning|rotating|extruded|flying) (?:3d )?(?:title|text|heading|letters)\b",
+     "title3d", "3D title"),
+    (r"\b(?:3d|three[- ]d) (?:objects?|shapes?|cubes?|balls?|spheres?|gems?|diamonds?|stars?|hearts?|rings?|donuts?|knots?|elements?|icons?)\b|"
+     r"\b(?:spinning|floating|rotating) (?:cubes?|shapes?|objects?|gems?|diamonds?|stars?|hearts?|rings?)\b",
+     "shape3d", "3D object"),
+    (r"\b(intro title|opening title|title card|animated title|big title|motion titles?|intro(?:/| and | & )outro titles?|"
+     r"title at the (?:start|beginning)|titles?)\b", "title", "Animated title at the start"),
+    (r"\b(lower[ -]?thirds?|name (?:tag|card|plate|strip|bar|title|super)|(?:show|put|add|with) my name|my name on screen|"
+     r"location (?:tag|title|name)|place (?:tag|title|name))\b", "lower_third", "Name tag (lower third)"),
+    (r"\b(kinetic (?:text|type|typography|words?)|text (?:callouts?|pop[- ]?ups?)|callouts?|pop[- ]?up (?:text|words)|"
+     r"animated (?:text|words)|word pop[- ]?ups?)\b", "callout", "Kinetic text on key words"),
+    (r"\b(end (?:card|screen|title|slate)|outro(?: title| card)?|closing (?:title|card)|thank(?:s| you) for watching|"
+     r"subscribe (?:card|at the end))\b", "end_card", "End card"),
+    (r"\b(confetti|party poppers?)\b", "confetti", "Confetti"),
+    (r"\b(particles?|sparkles?|sparkly|glitter|bokeh|fireflies|magic dust|floating lights?)\b", "particles", "Sparkles"),
+    (r"\b(light leaks?|lens flares?|film burns?|glow(?:ing)? transitions?)\b", "light_leak", "Light leaks on the cuts"),
+]
+MOTION_OFF = r"\b(no (?:titles?|graphics|motion graphics|animations?|text graphics)|without (?:titles?|graphics|animations?))\b"
+SHAPES = [("heart", "heart"), ("star", "star"), ("diamond", "diamond"), ("gem", "gem"), ("cube", "cube"), ("box", "cube"),
+          ("ring", "ring"), ("donut", "ring"), ("knot", "knot"), ("ball", "ball"), ("sphere", "ball")]
+STYLE_WORDS = [(r"\b(neon|glow(?:ing|y)?|cyberpunk)\b", "neon"), (r"\b(gold(?:en)? (?:title|text|letters?|3d|name)|metallic|gold)\b(?! hour)", "gold"),
+               (r"\b(elegant|classy|luxury|royal|graceful)\b", "elegant")]
+
+
+def _quoted(brief: str, before: str) -> str:
+    m = re.search(before + r"\s*(?:saying|that says|with|reading|text)?\s*[:=-]?\s*[\"“]([^\"”]{1,60})[\"”]", brief, re.I)
+    return m.group(1).strip() if m else ""
+
+
+def motion_wishes(brief: str) -> dict:
+    """What motion graphics the prompt asks for, with their words: {"kinds", "style", "title", "name", "place", ...}."""
+    raw = (brief or "").replace("’", "'")
+    text = " " + raw.lower() + " "
+    out: dict = {"kinds": [], "said": [], "off": False, "style": "", "spin": False, "shape": "", "count": 1,
+                 "title": "", "name": "", "place": "", "end": "", "confetti_at": "end"}
+    off = re.search(MOTION_OFF, text)
+    if off:
+        out["off"] = True
+        out["said"].append(f"No titles or motion graphics (you wrote “{off.group(0).strip()}”)")
+        return out
+    hits: dict[str, str] = {}
+    for pattern, kind, _label in MOTION_RULES:
+        m = re.search(pattern, text)
+        if m and kind not in hits:
+            hits[kind] = m.group(0).strip()
+    if "title3d" not in hits and "shape3d" not in hits and re.search(r"\b(?:3d|three[- ]d)\b", text) \
+            and not re.search(CANNOT[0][0], text):
+        hits["title3d"] = "3d"
+    if "title3d" in hits:
+        hits.pop("title", None)
+    if re.search(r"\b(intro(?:/| and | & )outro|outro)\b", text) and "end_card" not in hits:
+        hits["end_card"] = "outro"
+    for pattern, style in STYLE_WORDS:
+        if re.search(pattern, text):
+            out["style"] = style
+            break
+    out["spin"] = bool(re.search(r"\b(spin(?:s|ning)?|rotat(?:e|es|ing)|turns? around|360)\b", text))
+    for word, shape in SHAPES:
+        sm = re.search(rf"\b{word}(e?s)?\b", text)
+        if sm:
+            out["shape"] = shape
+            out["count"] = 3 if sm.group(1) else 1
+            break
+    if re.search(r"\b(?:shapes|objects)\b", text) and "shape3d" in hits:
+        out["count"] = 3
+    if re.search(r"confetti (?:at|in|on) the (?:start|beginning|intro|opening)|(?:start|begin|open)s? with (?:a )?confetti", text):
+        out["confetti_at"] = "start"
+    out["end"] = _quoted(raw, r"(?:end (?:card|screen)|outro)")
+    quotes = [q.strip() for q in re.findall(r"[\"“]([^\"”]{1,60})[\"”]", raw) if q.strip() != out["end"]]
+    out["title"] = _quoted(raw, r"(?:title|heading|called|titled|intro)") or (
+        quotes[0] if quotes and ("title" in hits or "title3d" in hits) else "")
+    name = re.search(r"\b(?:my name is|name\s*[:=]|name (?:tag|card) (?:for|with|of|saying)|lower third (?:for|with|saying)|"
+                     r"(?:with|show|put|add) my name,?(?: as)?)\s*[\"“]?([A-Z][\w.'-]*(?:\s+[A-Z][\w.'-]*){0,3})", raw)
+    name = name or re.search(r"\bname\s*[:=]\s*([^,.;\n\"”]{2,40})", raw, re.I)
+    out["name"] = name.group(1).strip() if name else ""
+    place = re.search(r"\b(?:place|location)\s*(?:[:=]|is|as)\s*([^,.;\n\"”]{2,40})", raw, re.I)
+    out["place"] = place.group(1).strip() if place else ""
+    for kind in ("title3d", "title", "lower_third", "callout", "shape3d", "end_card", "confetti", "particles", "light_leak"):
+        if kind not in hits:
+            continue
+        out["kinds"].append(kind)
+        label = dict((k, lab) for _p, k, lab in MOTION_RULES)[kind]
+        extra = []
+        if kind in ("title", "title3d") and out["title"]:
+            extra.append(f"“{out['title']}”")
+        if kind == "title3d" and out["spin"]:
+            extra.append("spinning")
+        if kind == "lower_third":
+            extra.append(f"“{out['name']}”" if out["name"] else "your name (write “name: Your Name” to choose it)")
+            if out["place"]:
+                extra.append(f"place “{out['place']}”")
+        if kind == "shape3d":
+            extra.append(f"{out['count']} × {out['shape'] or 'gem'}")
+        if kind == "end_card" and out["end"]:
+            extra.append(f"“{out['end']}”")
+        if kind == "confetti":
+            extra.append("at the start" if out["confetti_at"] == "start" else "at the end")
+        if out["style"] and kind in ("title", "title3d", "lower_third", "callout", "end_card", "shape3d"):
+            extra.append(out["style"])
+        out["said"].append(f"Motion: {label}{' ' + ', '.join(extra) if extra else ''} (you wrote “{hits[kind]}”)")
+    return out
+
+
 FLAG = {"aspect": "--aspect", "template": "--template", "grade": "--grade", "pacing": "--pacing", "fx": "--fx",
         "motion": "--motion", "transition": "--transition", "captions": "--captions", "caption_script": "--caption-script",
-        "music": "--music", "quality": "--quality", "target": "--target"}
+        "music": "--music", "quality": "--quality", "target": "--target", "graphics": "--graphics"}
 SWITCH = {"no_music": "--no-music", "keep_silences": "--keep-silences", "no_reframe": "--no-reframe"}
 EMPTY = (None, "", "auto")
 

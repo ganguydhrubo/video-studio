@@ -43,8 +43,9 @@ class Reading(unittest.TestCase):
 
     def test_what_cannot_be_done_is_said(self):
         r = understand("add 3D text and AI-generated scenes, green screen, slow motion")
-        self.assertEqual(len(r["cannot"]), 4)
-        self.assertTrue(any("3D" in c for c in r["cannot"]))
+        self.assertEqual(len(r["cannot"]), 3)   # 3D text is drawn since 1.9.0 (motion.py)
+        self.assertEqual(r["options"]["graphics"], "title3d")
+        self.assertTrue(any("3D" in c for c in understand("turn my video into 3d")["cannot"]))
         self.assertEqual(understand("")["cannot"], [])
 
     def test_fine_tune_choices_win_over_the_prompt(self):

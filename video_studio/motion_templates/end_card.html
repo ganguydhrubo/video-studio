@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width={{W}}, height={{H}}">
+{{HEAD}}
+<style>
+html, body { margin: 0; background: transparent; }
+#root { position: relative; width: {{W}}px; height: {{H}}px; overflow: hidden; background: transparent; }
+.clip { position: absolute; inset: 0; }
+.scrim { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% var(--text-y), rgba(0,0,0,.62) 0%, rgba(0,0,0,.48) 45%, rgba(0,0,0,.2) 100%); }
+.stage { position: absolute; left: 0; right: 0; top: var(--text-y); transform: translateY(-50%); display: flex; flex-direction: column;
+  align-items: center; text-align: center; padding: 0 var(--pad); box-sizing: border-box; gap: calc(var(--size) * .3); }
+.big { margin: 0; font-family: var(--font); font-weight: 800; font-size: var(--size); line-height: 1.05; color: var(--ink);
+  letter-spacing: var(--track); text-wrap: balance; text-shadow: var(--shadow); }
+.big .w { display: inline-block; }
+.rule { width: calc(var(--size) * 2.2); height: max(4px, calc(var(--size) * .07)); border-radius: 99px; background: var(--accent); transform-origin: center; }
+.sub { margin: 0; font-family: var(--font2); font-size: calc(var(--size) * .42); color: var(--muted); letter-spacing: .05em; }
+.sub.empty { display: none; }
+.neon .big { color: #fff; text-shadow: 0 0 8px var(--glow), 0 0 24px var(--glow), 0 0 60px var(--glow2); }
+.neon .rule { background: var(--glow); box-shadow: 0 0 18px var(--glow); }
+.elegant .big { font-weight: 400; font-style: italic; }
+.elegant .rule { height: 2px; }
+</style></head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-width="{{W}}" data-height="{{H}}" data-duration="{{DUR}}" data-fps="{{FPS}}">
+  <section class="clip" id="scene" data-start="0" data-duration="{{DUR}}" data-track-index="0">
+    <div class="scrim" id="scrim"></div>
+    <div class="stage" id="stage">
+      <p class="big" id="big" data-tb="text" data-words></p>
+      <span class="rule" id="rule"></span>
+      <p class="sub" id="sub" data-tb="sub"></p>
+    </div>
+  </section>
+</div>
+<script>
+TB.fill();
+document.getElementById("stage").classList.add(TB.style);
+const tl = gsap.timeline({ paused: true });
+tl.from("#scrim", { opacity: 0, duration: 0.6, ease: "power1.out" }, 0);
+tl.from("#big .w", { y: 40, opacity: 0, duration: 0.6, ease: "power3.out", stagger: 0.08 }, 0.25);
+tl.from("#rule", { scaleX: 0, duration: 0.5, ease: "power3.out" }, 0.55);
+tl.from("#sub", { opacity: 0, y: 16, duration: 0.5, ease: "power2.out" }, 0.75);
+window.__timelines["main"] = tl;
+TB.whenReady(() => TB.fit(document.getElementById("big"), {{W}} * 0.88, {{H}} * 0.4));
+</script>
+</body></html>

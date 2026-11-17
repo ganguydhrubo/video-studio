@@ -898,6 +898,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--like", help="edit in a style learned with `video-studio learn-style` (see `video-studio styles`)")
     s.add_argument("--fx", choices=["auto", "off", "clean", "bold", "viral"], default="auto",
                    help="layered style pass: camera angles, transitions, words behind you, hits (auto = from the brief)")
+    s.add_argument("--graphics", default="auto",
+                   help="motion graphics and 3D: auto (from the brief and template), off, or a list such as "
+                        "title3d,lower_third,confetti (kinds: title, title3d, lower_third, callout, end_card, shape3d, "
+                        "confetti, particles, light_leak)")
     s.add_argument("--caption-script", choices=["auto", "native", "roman"], default="auto",
                    help="roman = write Hindi/Bengali/etc. captions in Latin letters (Hinglish style)")
     s.add_argument("--whisper-model", default="auto", help="auto (best model already downloaded) | tiny | base | small | medium | large-v3-turbo")

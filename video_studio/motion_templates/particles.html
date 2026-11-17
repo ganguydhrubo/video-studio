@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width={{W}}, height={{H}}">
+{{HEAD}}
+<style>
+html, body { margin: 0; background: transparent; }
+#root { position: relative; width: {{W}}px; height: {{H}}px; overflow: hidden; background: transparent; }
+.clip { position: absolute; inset: 0; }
+canvas { position: absolute; left: 0; top: 0; width: {{W}}px; height: {{H}}px; }
+</style></head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-width="{{W}}" data-height="{{H}}" data-duration="{{DUR}}" data-fps="{{FPS}}">
+  <section class="clip" id="scene" data-start="0" data-duration="{{DUR}}" data-track-index="0">
+    <canvas id="cv" width="{{W}}" height="{{H}}"></canvas>
+  </section>
+</div>
+<script>
+/* Sparkles: soft points of light drifting upwards and twinkling, fading in and out with the piece. */
+const D = {{DUR}}, W = {{W}}, H = {{H}};
+const cx = document.getElementById("cv").getContext("2d");
+const rnd = TB.rand(TB.seed || 5);
+const N = TB.count || 70, U = Math.min(W, H);
+const COLS = TB.palette && TB.palette.length ? TB.palette : ["255,236,190", "255,255,255", "255,214,130"];
+const dots = [];
+for (let i = 0; i < N; i++) dots.push({ x: rnd() * W, y: H * (0.15 + rnd() * 0.9), r: U * (0.004 + rnd() * 0.01),
+  rise: H * (0.04 + rnd() * 0.08), sway: U * (0.01 + rnd() * 0.03), ph: rnd() * 6.28, tw: 3 + rnd() * 5, col: COLS[i % COLS.length] });
+function draw(t) {
+  cx.clearRect(0, 0, W, H);
+  const env = Math.min(1, t / 0.6, (D - t) / 0.7);
+  if (env <= 0) return;
+  cx.globalCompositeOperation = "lighter";
+  for (const d of dots) {
+    const x = d.x + Math.sin(t * 1.2 + d.ph) * d.sway, y = d.y - d.rise * t;
+    const a = env * (0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.sin(t * d.tw + d.ph), 2));
+    const gr = cx.createRadialGradient(x, y, 0, x, y, d.r * 4);
+    gr.addColorStop(0, `rgba(${d.col},${a})`);
+    gr.addColorStop(0.25, `rgba(${d.col},${a * 0.5})`);
+    gr.addColorStop(1, `rgba(${d.col},0)`);
+    cx.fillStyle = gr;
+    cx.beginPath(); cx.arc(x, y, d.r * 4, 0, 6.283); cx.fill();
+  }
+}
+const st = { t: 0 };
+const tl = gsap.timeline({ paused: true });
+tl.to(st, { t: D, duration: D, ease: "none", onUpdate: () => draw(st.t) }, 0);
+window.addEventListener("hf-seek", (e) => { st.t = e.detail.time; draw(st.t); });
+draw(0);
+window.__timelines["main"] = tl;
+</script>
+</body></html>

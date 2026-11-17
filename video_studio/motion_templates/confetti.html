@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width={{W}}, height={{H}}">
+{{HEAD}}
+<style>
+html, body { margin: 0; background: transparent; }
+#root { position: relative; width: {{W}}px; height: {{H}}px; overflow: hidden; background: transparent; }
+.clip { position: absolute; inset: 0; }
+canvas { position: absolute; left: 0; top: 0; width: {{W}}px; height: {{H}}px; }
+</style></head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-width="{{W}}" data-height="{{H}}" data-duration="{{DUR}}" data-fps="{{FPS}}">
+  <section class="clip" id="scene" data-start="0" data-duration="{{DUR}}" data-track-index="0">
+    <canvas id="cv" width="{{W}}" height="{{H}}"></canvas>
+  </section>
+</div>
+<script>
+/* Confetti from two cannons at the bottom corners. Every piece's path is worked out from time alone
+   (launch, air drag, gravity, flutter), so any frame can be drawn on its own. */
+const D = {{DUR}}, W = {{W}}, H = {{H}};
+const cx = document.getElementById("cv").getContext("2d");
+const rnd = TB.rand(TB.seed || 11);
+const COLS = TB.palette && TB.palette.length ? TB.palette : ["#ff3b6b", "#ffc83d", "#3ddc97", "#4cc9f0", "#7b61ff", "#ffffff", "#ff8a3d"];
+const N = TB.count || 150, U = Math.min(W, H);
+const pieces = [];
+for (let i = 0; i < N; i++) {
+  const left = i % 2 === 0;
+  const ang = (left ? -62 : -118) + (rnd() - 0.5) * 34;
+  const sp = H * (1.5 + rnd() * 1.1);
+  pieces.push({
+    x0: left ? W * 0.04 : W * 0.96, y0: H * 1.02,
+    vx: Math.cos(ang * Math.PI / 180) * sp, vy: Math.sin(ang * Math.PI / 180) * sp,
+    delay: rnd() * 0.35, k: 1.6 + rnd() * 1.2, w: U * (0.012 + rnd() * 0.012), h: U * (0.006 + rnd() * 0.008),
+    rot: rnd() * 6.28, spin: (rnd() - 0.5) * 14, flip: 6 + rnd() * 10, col: COLS[i % COLS.length], round: rnd() < 0.22,
+  });
+}
+const g = H * 0.9;
+function draw(t) {
+  cx.clearRect(0, 0, W, H);
+  const fade = Math.min(1, Math.max(0, (D - t) / 0.6));
+  for (const p of pieces) {
+    const s = t - p.delay;
+    if (s <= 0) continue;
+    const e = 1 - Math.exp(-p.k * s);
+    const x = p.x0 + (p.vx / p.k) * e + Math.sin(s * 3 + p.rot) * U * 0.01;
+    const y = p.y0 + (p.vy / p.k) * e + (g / p.k) * s - (g / (p.k * p.k)) * e;
+    if (y > H + 40 || x < -40 || x > W + 40) continue;
+    cx.save();
+    cx.globalAlpha = fade;
+    cx.translate(x, y);
+    cx.rotate(p.rot + p.spin * s);
+    cx.fillStyle = p.col;
+    if (p.round) { cx.beginPath(); cx.arc(0, 0, p.h * 0.9, 0, 6.283); cx.fill(); }
+    else cx.fillRect(-p.w / 2, -p.h / 2 * Math.abs(Math.cos(s * p.flip)), p.w, p.h * Math.abs(Math.cos(s * p.flip)) + 0.5);
+    cx.restore();
+  }
+}
+const st = { t: 0 };
+const tl = gsap.timeline({ paused: true });
+tl.to(st, { t: D, duration: D, ease: "none", onUpdate: () => draw(st.t) }, 0);
+window.addEventListener("hf-seek", (e) => { st.t = e.detail.time; draw(st.t); });
+draw(0);
+window.__timelines["main"] = tl;
+</script>
+</body></html>

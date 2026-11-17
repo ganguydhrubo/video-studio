@@ -36,7 +36,7 @@ def main():
                 assert b'/api/brief/interpret' in response.read()
             assert 'id="mPhotos"' in html and 'id="machineCard"' in html and 'id="updateCard"' in html
             assert '/autopilot.js' in html and '/understand.js' in html and 'id="mGenerate"' not in html
-    assert 'function wireShare' in html and 'id="tDownload"' in html and 'function fixPreview' in html
+            assert 'function wireShare' in html and 'id="tDownload"' in html and 'function fixPreview' in html
             with opener.open('http://127.0.0.1:7894/api/library') as response:
                 lib=json.load(response)
             assert lib['counts']['templates']>=20 and lib['counts']['looks']>=15 and lib['counts']['transitions']>=50
@@ -47,6 +47,9 @@ def main():
                 raise AssertionError('Write without token accepted')
             except urllib.error.HTTPError as error:
                 assert error.code==403
+            bundle = Path(executable).parent / '_internal' / 'motion_templates'   # motion graphics pages and three.js
+            for name in ('kit.js', 'title3d.html', 'confetti.html', 'vendor/three-motion.min.js', 'vendor/mukta_extrabold.typeface.json'):
+                assert (bundle / name).is_file(), f'missing in the build: motion_templates/{name}'
             print('Packaged app passed:',health['version'])
         finally:
             proc.terminate()
